@@ -15,7 +15,7 @@ import {
   Minimize2 
 } from 'lucide-react';
 
-export const AiAdvisorWidget = ({ onOpenSettingsModal }) => {
+export const AiAdvisorWidget = () => {
   const expenseContext = useExpense();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -69,7 +69,7 @@ export const AiAdvisorWidget = ({ onOpenSettingsModal }) => {
         {
           id: Date.now() + 1,
           sender: 'ai',
-          text: "I couldn't process that query right now. Please check your internet connection or AI API key in Settings.",
+          text: "I couldn't process that query right now. Please check your internet connection.",
         },
       ]);
     } finally {
@@ -88,24 +88,24 @@ export const AiAdvisorWidget = ({ onOpenSettingsModal }) => {
     <>
       {/* Floating Action Button */}
       {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-40">
+        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
           <button
             onClick={() => setIsOpen(true)}
-            className="group relative flex items-center space-x-2.5 px-4 py-3 bg-gradient-to-r from-indigo-600 via-indigo-700 to-emerald-600 text-white rounded-full shadow-2xl shadow-indigo-600/40 hover:scale-105 active:scale-95 transition-all duration-200"
+            className="group relative flex items-center space-x-2 sm:space-x-2.5 px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-indigo-600 via-indigo-700 to-emerald-600 text-white rounded-full shadow-2xl shadow-indigo-600/40 hover:scale-105 active:scale-95 transition-all duration-200"
           >
-            <span className="relative flex h-3 w-3">
+            <span className="relative flex h-2.5 w-2.5 sm:h-3 sm:w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400" />
+              <span className="relative inline-flex rounded-full h-full w-full bg-emerald-400" />
             </span>
-            <Sparkles className="w-4 h-4 text-amber-300 group-hover:rotate-12 transition" />
-            <span className="text-sm font-bold tracking-wide">PaisaPilot AI</span>
+            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300 group-hover:rotate-12 transition" />
+            <span className="text-xs sm:text-sm font-bold tracking-wide">PaisaPilot AI</span>
           </button>
         </div>
       )}
 
       {/* Floating Chat Drawer / Window */}
       {isOpen && (
-        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[95vw] sm:w-[420px] h-[580px] max-h-[85vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-slideUp">
+        <div className="fixed inset-x-2 bottom-2 sm:inset-x-auto sm:bottom-6 sm:right-6 z-50 sm:w-[420px] h-[540px] max-h-[88vh] bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-slideUp">
           
           {/* Header */}
           <div className="p-4 bg-gradient-to-r from-indigo-600 to-indigo-800 text-white flex items-center justify-between shadow-md">

@@ -1,15 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Retrieve credentials either from environment variables or custom user settings in localStorage
+// Pre-configured in-code credentials for PaisaPilot Supabase database
+const CODE_SUPABASE_URL = 'https://qiasbifrkoogetqacfio.supabase.co';
+const CODE_SUPABASE_KEY = 'sb_publishable_zFm5_e381HPy9b4X1BxD2w_ULTaDaEJ';
+
 export const getSupabaseConfig = () => {
   const envUrl = import.meta.env.VITE_SUPABASE_URL;
   const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  const storedUrl = localStorage.getItem('paisapilot_supabase_url');
-  const storedKey = localStorage.getItem('paisapilot_supabase_key');
-
-  let url = (storedUrl || envUrl || '').trim();
-  const key = (storedKey || envKey || '').trim();
+  let url = (envUrl || CODE_SUPABASE_URL || '').trim();
+  const key = (envKey || CODE_SUPABASE_KEY || '').trim();
 
   // Normalize URL: remove trailing /rest/v1 or trailing slashes
   if (url.endsWith('/rest/v1/')) {

@@ -169,26 +169,29 @@ export const SpendingCharts = ({ onOpenBudgetModal }) => {
             {paymentModeBreakdown.length === 0 ? (
               <p className="text-xs text-slate-400 text-center py-8">No payment mode data yet.</p>
             ) : (
-              paymentModeBreakdown.map((mode) => (
-                <div key={mode.name} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs font-semibold">
-                    <div className="flex items-center space-x-2">
-                      <PaymentModeIcon mode={mode.name} />
-                      <span className="text-slate-700 dark:text-slate-200">{mode.name}</span>
+              paymentModeBreakdown.map((pm) => {
+                const modeName = pm.mode || pm.name;
+                return (
+                  <div key={modeName} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <div className="flex items-center space-x-2">
+                        <PaymentModeIcon mode={modeName} />
+                        <span className="text-slate-700 dark:text-slate-200">{modeName}</span>
+                      </div>
+                      <div className="flex items-center space-x-1.5">
+                        <span className="text-slate-900 dark:text-white font-bold">{formatINR(pm.amount)}</span>
+                        <span className="text-slate-400 text-[11px]">({pm.percentage}%)</span>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-1.5">
-                      <span className="text-slate-900 dark:text-white font-bold">{formatINR(mode.amount)}</span>
-                      <span className="text-slate-400 text-[11px]">({mode.percentage}%)</span>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-emerald-500 to-teal-500 h-2 rounded-full"
+                        style={{ width: `${pm.percentage}%` }}
+                      />
                     </div>
                   </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-gradient-to-r from-emerald-500 to-teal-500 h-2 rounded-full"
-                      style={{ width: `${mode.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

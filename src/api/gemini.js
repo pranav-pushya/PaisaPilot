@@ -4,9 +4,7 @@
 // Key Management
 // ----------------------------------------------------
 export const getGroqApiKey = () => {
-  const envKey = import.meta.env.VITE_GROQ_API_KEY;
-  const storedKey = localStorage.getItem('paisapilot_groq_key');
-  return storedKey || envKey || '';
+  return import.meta.env.VITE_GROQ_API_KEY || '';
 };
 
 export const isGroqConfigured = () => {
@@ -15,9 +13,7 @@ export const isGroqConfigured = () => {
 };
 
 export const getGeminiApiKey = () => {
-  const envKey = import.meta.env.VITE_GEMINI_API_KEY;
-  const storedKey = localStorage.getItem('paisapilot_gemini_key');
-  return storedKey || envKey || '';
+  return import.meta.env.VITE_GEMINI_API_KEY || '';
 };
 
 export const isGeminiConfigured = () => {

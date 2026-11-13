@@ -6,13 +6,11 @@ import { SpendingCharts } from './components/dashboard/SpendingCharts';
 import { SmartBudgetAlert } from './components/dashboard/SmartBudgetAlert';
 import { TransactionList } from './components/transactions/TransactionList';
 import { AddTransactionModal } from './components/transactions/AddTransactionModal';
-import { SettingsModal } from './components/common/SettingsModal';
 import { BudgetManagerModal } from './components/budget/BudgetManagerModal';
 import { AiAdvisorWidget } from './components/ai-advisor/AiAdvisorWidget';
 
 function DashboardContent() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [openAiTrigger, setOpenAiTrigger] = useState(false);
 
@@ -36,7 +34,6 @@ function DashboardContent() {
       {/* Top Navigation */}
       <Navbar
         onOpenAddModal={() => setIsAddModalOpen(true)}
-        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
         onOpenBudgetModal={() => setIsBudgetModalOpen(true)}
       />
 
@@ -70,21 +67,13 @@ function DashboardContent() {
         onClose={() => setIsAddModalOpen(false)}
       />
 
-      <SettingsModal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-      />
-
       <BudgetManagerModal
         isOpen={isBudgetModalOpen}
         onClose={() => setIsBudgetModalOpen(false)}
       />
 
       {/* Floating AI Financial Advisor */}
-      <AiAdvisorWidget
-        key={String(openAiTrigger)}
-        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
-      />
+      <AiAdvisorWidget key={String(openAiTrigger)} />
     </div>
   );
 }

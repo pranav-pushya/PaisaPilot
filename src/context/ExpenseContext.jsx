@@ -9,6 +9,30 @@ const ExpenseContext = createContext(null);
 export const ExpenseProvider = ({ children }) => {
   const currentMonthStr = getCurrentMonthStr();
 
+  // Dark / Light Theme management
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('paisapilot_theme');
+    if (saved) return saved;
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'dark'; // default to dark theme
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('paisapilot_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   const [transactions, setTransactions] = useState(() => {
     const saved = localStorage.getItem('paisapilot_transactions');
     return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
@@ -132,6 +156,21 @@ export const ExpenseProvider = ({ children }) => {
     }
   };
 
+  // Delete All Transactions
+  const clearAllTransactions = async () => {
+    setTransactions([]);
+    localStorage.removeItem('paisapilot_transactions');
+
+    const supabase = getSupabase();
+    if (supabase && supabaseConnected) {
+      try {
+        await supabase.from('transactions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      } catch (err) {
+        console.error('Failed to clear transactions from Supabase:', err);
+      }
+    }
+  };
+
   // Update Budget limit
   const setCategoryBudget = (categoryName, limit) => {
     setBudgets((prev) => ({
@@ -204,59 +243,62 @@ export const ExpenseProvider = ({ children }) => {
     });
 
     const balance = income - expense;
-    const savingsRate = income > 0 ? Math.max(0, Math.round(((income - expense) / income) * 100)) : 0;
+    const savingsRate = income > 0 ? Math.round(((income - expense) / income) * 100) : 0;
 
-    // Calculate days passed in selected month
-    const todayMonth = getCurrentMonthStr();
-    const isCurrent = todayMonth === selectedMonth;
-    const daysPassed = isCurrent ? Math.max(1, new Date().getDate()) : 30;
-    const dailyAverage = Math.round(expense / daysPassed);
+    // Convert category map into sorted array
+    const categoryBreakdown = Object.keys(catMap)
+      .map((name) => {
+        const catObj = categories.find((c) => c.name === name) || {};
+        const amt = catMap[name].amount;
+        const budgetLimit = budgets[name] || 0;
+        const percentage = expense > 0 ? Math.round((amt / expense) * 100) : 0;
 
-    // Format category breakdown
-    const categoryBreakdown = Object.keys(catMap).map((catName) => {
-      const catObj = categories.find((c) => c.name === catName) || {
-        color: '#94a3b8',
-        icon: 'Tag',
-      };
-      const catAmt = catMap[catName].amount;
-      const budgetLimit = budgets[catName] || null;
-      return {
-        name: catName,
-        amount: catAmt,
-        count: catMap[catName].count,
-        color: catObj.color,
-        icon: catObj.icon,
-        percentage: expense > 0 ? Math.round((catAmt / expense) * 100) : 0,
-        budget: budgetLimit,
-        isOverBudget: budgetLimit ? catAmt > budgetLimit : false,
-      };
-    }).sort((a, b) => b.amount - a.amount);
+        return {
+          name,
+          amount: amt,
+          count: catMap[name].count,
+          percentage,
+          color: catObj.color || '#6366f1',
+          icon: catObj.icon || 'Tag',
+          budgetLimit,
+          isOverBudget: budgetLimit > 0 && amt > budgetLimit,
+        };
+      })
+      .sort((a, b) => b.amount - a.amount);
 
-    const topCategory = categoryBreakdown[0] || null;
+    // Convert payment mode map into sorted array
+    const paymentModeBreakdown = Object.keys(modeMap)
+      .map((mode) => ({
+        mode,
+        amount: modeMap[mode],
+        percentage: expense > 0 ? Math.round((modeMap[mode] / expense) * 100) : 0,
+      }))
+      .sort((a, b) => b.amount - a.amount);
 
-    // Format payment mode breakdown
-    const paymentModeBreakdown = Object.keys(modeMap).map((mode) => ({
-      name: mode,
-      amount: modeMap[mode],
-      percentage: expense > 0 ? Math.round((modeMap[mode] / expense) * 100) : 0,
-    })).sort((a, b) => b.amount - a.amount);
+    // Top category
+    const topCategory = categoryBreakdown.length > 0 ? categoryBreakdown[0] : null;
+
+    // Daily average based on days elapsed in month
+    const today = new Date();
+    const currentDay = today.getDate();
+    const dailyAverage = currentDay > 0 ? Math.round(expense / currentDay) : expense;
 
     return {
       totalIncome: income,
       totalExpense: expense,
       balance,
       savingsRate,
-      dailyAverage,
       categoryBreakdown,
-      topCategory,
       paymentModeBreakdown,
+      topCategory,
+      dailyAverage,
       transactionCount: monthlyTransactions.length,
-      currentMonth: selectedMonth,
-      recentTransactions: monthlyTransactions.slice(0, 8),
     };
-  }, [monthlyTransactions, categories, budgets, selectedMonth]);
+  }, [monthlyTransactions, categories, budgets]);
 
   const value = {
+    theme,
+    toggleTheme,
     transactions,
     categories,
     budgets,
@@ -272,6 +314,7 @@ export const ExpenseProvider = ({ children }) => {
     setFilterType,
     addTransaction,
     deleteTransaction,
+    clearAllTransactions,
     setCategoryBudget,
     resetToSampleData,
     supabaseConnected,
