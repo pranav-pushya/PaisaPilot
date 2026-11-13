@@ -8,8 +8,16 @@ export const getSupabaseConfig = () => {
   const storedUrl = localStorage.getItem('paisapilot_supabase_url');
   const storedKey = localStorage.getItem('paisapilot_supabase_key');
 
-  const url = storedUrl || envUrl || '';
-  const key = storedKey || envKey || '';
+  let url = (storedUrl || envUrl || '').trim();
+  const key = (storedKey || envKey || '').trim();
+
+  // Normalize URL: remove trailing /rest/v1 or trailing slashes
+  if (url.endsWith('/rest/v1/')) {
+    url = url.slice(0, -9);
+  } else if (url.endsWith('/rest/v1')) {
+    url = url.slice(0, -8);
+  }
+  url = url.replace(/\/+$/, '');
 
   const isValid = Boolean(url && key && url.startsWith('http') && !url.includes('your-project-id'));
 

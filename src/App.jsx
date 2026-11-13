@@ -60,7 +60,7 @@ function DashboardContent() {
       {/* Footer */}
       <footer className="py-6 border-t border-slate-200/80 dark:border-slate-800/80 text-center text-xs text-slate-400">
         <p>
-          PaisaPilot &bull; Built with React.js &bull; Supabase &bull; Google Gemini AI &bull; Indian Rupee (₹)
+          PaisaPilot &bull; Built with React.js &bull; Supabase &bull; Groq AI &bull; Indian Rupee (₹)
         </p>
       </footer>
 

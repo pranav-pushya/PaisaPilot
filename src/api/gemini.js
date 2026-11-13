@@ -1,4 +1,18 @@
-// Google Gemini API integration for PaisaPilot AI Co-Pilot
+// Groq & Gemini AI integration for PaisaPilot AI Co-Pilot
+
+// ----------------------------------------------------
+// Key Management
+// ----------------------------------------------------
+export const getGroqApiKey = () => {
+  const envKey = import.meta.env.VITE_GROQ_API_KEY;
+  const storedKey = localStorage.getItem('paisapilot_groq_key');
+  return storedKey || envKey || '';
+};
+
+export const isGroqConfigured = () => {
+  const key = getGroqApiKey();
+  return Boolean(key && !key.includes('your-groq') && key.length > 10);
+};
 
 export const getGeminiApiKey = () => {
   const envKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -11,26 +25,85 @@ export const isGeminiConfigured = () => {
   return Boolean(key && !key.includes('your-gemini-api-key') && key.length > 10);
 };
 
-/**
- * Intelligent Natural Language Parser for expenses
- * e.g., "Spent 450 on Swiggy dinner with friends via UPI"
- */
-export const parseExpensePrompt = async (promptText) => {
-  const apiKey = getGeminiApiKey();
+export const isAiConfigured = () => isGroqConfigured() || isGeminiConfigured();
 
-  if (isGeminiConfigured()) {
+export const getAiProviderName = () => {
+  if (isGroqConfigured()) return 'Groq (Llama 3.3)';
+  if (isGeminiConfigured()) return 'Google Gemini';
+  return 'Offline Intelligent Engine';
+};
+
+// ----------------------------------------------------
+// 1. Natural Language Parser for expenses
+// e.g. "Spent 450 on Swiggy dinner with friends via UPI"
+// ----------------------------------------------------
+export const parseExpensePrompt = async (promptText) => {
+  const groqKey = getGroqApiKey();
+  const geminiKey = getGeminiApiKey();
+
+  // 1. Try Groq (Llama 3.3 70B Versatile)
+  if (isGroqConfigured()) {
     try {
-      const systemInstruction = `
-You are an expert Indian expense extractor. Given a natural language description of an expense or income, extract the structured data as a JSON object with:
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${groqKey}`
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            {
+              role: 'system',
+              content: `You are an expert Indian expense extractor. Given a natural language description of an expense or income, extract the structured data as a JSON object with:
 - amount: number (e.g. 450)
 - type: 'expense' or 'income'
-- category_name: best match among ['Food & Dining', 'Groceries', 'Transport & Fuel', 'Rent & Utilities', 'Shopping', 'Entertainment & OTT', 'Healthcare', 'Personal Care', 'Salary & Income', 'Investments & Returns', 'Freelance & Bonus']
+- category_name: best match among ['Food & Dining', 'Groceries', 'Transport & Fuel', 'Rent & Utilities', 'Shopping & Personal', 'Entertainment & OTT', 'Healthcare', 'Salary & Income', 'Investments & Returns', 'Freelance / Side Gig']
+- payment_mode: best match among ['UPI', 'Credit Card', 'Debit Card', 'Cash', 'Net Banking'] (default to 'UPI' if unspecified)
+- description: clean, concise description string (max 40 characters)
+
+Respond ONLY with valid JSON. No markdown backticks or explanation.`
+            },
+            {
+              role: 'user',
+              content: `Extract from this text: "${promptText}"`
+            }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.1
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const content = data?.choices?.[0]?.message?.content;
+        const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+        return {
+          amount: Number(parsed.amount) || 0,
+          type: parsed.type || 'expense',
+          category_name: parsed.category_name || 'Food & Dining',
+          payment_mode: parsed.payment_mode || 'UPI',
+          description: parsed.description || promptText,
+        };
+      }
+    } catch (err) {
+      console.warn('Groq live parsing failed, trying fallback:', err);
+    }
+  }
+
+  // 2. Try Gemini fallback if configured
+  if (isGeminiConfigured()) {
+    try {
+      const systemInstruction = `You are an expert Indian expense extractor. Given a natural language description of an expense or income, extract the structured data as a JSON object with:
+- amount: number (e.g. 450)
+- type: 'expense' or 'income'
+- category_name: best match among ['Food & Dining', 'Groceries', 'Transport & Fuel', 'Rent & Utilities', 'Shopping & Personal', 'Entertainment & OTT', 'Healthcare', 'Salary & Income', 'Investments & Returns', 'Freelance / Side Gig']
 - payment_mode: best match among ['UPI', 'Credit Card', 'Debit Card', 'Cash', 'Net Banking'] (default to 'UPI' if unspecified)
 - description: clean, concise description string
 
 Respond ONLY with valid JSON. No markdown backticks or explanation.`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -58,7 +131,7 @@ Respond ONLY with valid JSON. No markdown backticks or explanation.`;
     }
   }
 
-  // Smart local regex fallback
+  // 3. Smart local regex fallback
   return fallbackRuleBasedParser(promptText);
 };
 
@@ -100,7 +173,7 @@ const fallbackRuleBasedParser = (text) => {
   } else if (clean.includes('medicine') || clean.includes('doctor') || clean.includes('hospital') || clean.includes('pharmacy')) {
     category_name = 'Healthcare';
   } else if (clean.includes('amazon') || clean.includes('flipkart') || clean.includes('myntra') || clean.includes('shoes') || clean.includes('clothes') || clean.includes('shopping')) {
-    category_name = 'Shopping';
+    category_name = 'Shopping & Personal';
   }
 
   // Clean description
@@ -115,11 +188,12 @@ const fallbackRuleBasedParser = (text) => {
   };
 };
 
-/**
- * Ask the PaisaPilot AI Co-Pilot for financial advice
- */
+// ----------------------------------------------------
+// 2. Query Financial AI Advisor
+// ----------------------------------------------------
 export const queryAiAdvisor = async (userQuestion, contextData) => {
-  const apiKey = getGeminiApiKey();
+  const groqKey = getGroqApiKey();
+  const geminiKey = getGeminiApiKey();
 
   const formattedContext = `
 Current Financial Snapshot for ${contextData.currentMonth}:
@@ -135,9 +209,7 @@ ${contextData.categoryBreakdown.map(c => `  * ${c.name}: ₹${c.amount} (${c.per
 ${contextData.recentTransactions.slice(0, 5).map(t => `  * ${t.date}: ${t.description || t.category_name} - ₹${t.amount} (${t.type}, ${t.payment_mode})`).join('\n')}
 `;
 
-  if (isGeminiConfigured()) {
-    try {
-      const systemPrompt = `You are "PaisaPilot AI", a smart, friendly, and practical personal finance advisor for India.
+  const systemPrompt = `You are "PaisaPilot AI", a smart, friendly, and practical personal finance advisor for India.
 You have real-time access to the user's spending data.
 Rules:
 1. Ground your answers directly in their numbers (Income, Expenses, Categories, Savings Rate in ₹).
@@ -146,7 +218,38 @@ Rules:
 4. Keep the tone encouraging, realistic, and tailored to Indian daily expenses (UPI, Swiggy, rent, groceries, impulse shopping).
 5. Never provide generic disclaimers unless necessary; be actionable!`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+  // 1. Try Groq (Llama 3.3 70B Versatile)
+  if (isGroqConfigured()) {
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${groqKey}`
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Context:\n${formattedContext}\n\nUser Question: "${userQuestion}"` }
+          ],
+          temperature: 0.6
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data?.choices?.[0]?.message?.content || 'No response generated.';
+      }
+    } catch (err) {
+      console.warn('Groq advisor query failed, trying fallback:', err);
+    }
+  }
+
+  // 2. Try Gemini fallback
+  if (isGeminiConfigured()) {
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -165,7 +268,7 @@ Rules:
     }
   }
 
-  // Realistic Context-Aware Offline Advisor Response
+  // 3. Realistic Context-Aware Offline Advisor Response
   return generateOfflineAdvisorResponse(userQuestion, contextData);
 };
 

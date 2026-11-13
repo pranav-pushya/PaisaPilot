@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useExpense } from '../../context/ExpenseContext';
-import { queryAiAdvisor, isGeminiConfigured } from '../../api/gemini';
+import { queryAiAdvisor, isAiConfigured, getAiProviderName } from '../../api/gemini';
 import { 
   Sparkles, 
   X, 
@@ -69,7 +69,7 @@ export const AiAdvisorWidget = ({ onOpenSettingsModal }) => {
         {
           id: Date.now() + 1,
           sender: 'ai',
-          text: "I couldn't process that query right now. Please check your internet connection or Gemini API key.",
+          text: "I couldn't process that query right now. Please check your internet connection or AI API key in Settings.",
         },
       ]);
     } finally {
@@ -119,7 +119,7 @@ export const AiAdvisorWidget = ({ onOpenSettingsModal }) => {
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 </h4>
                 <p className="text-[11px] text-indigo-100/80">
-                  {isGeminiConfigured() ? 'Connected via Google Gemini' : 'Offline Intelligent Engine'}
+                  {`Connected via ${getAiProviderName()}`}
                 </p>
               </div>
             </div>

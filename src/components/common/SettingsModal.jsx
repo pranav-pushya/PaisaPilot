@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useExpense } from '../../context/ExpenseContext';
 import { getSupabaseConfig, resetSupabaseClient } from '../../api/supabase';
-import { getGeminiApiKey } from '../../api/gemini';
+import { getGroqApiKey, getGeminiApiKey, getAiProviderName } from '../../api/gemini';
 import { 
   X, 
   Database, 
@@ -11,7 +11,8 @@ import {
   RotateCcw, 
   ExternalLink,
   ShieldCheck,
-  HardDrive
+  HardDrive,
+  Zap
 } from 'lucide-react';
 
 export const SettingsModal = ({ isOpen, onClose }) => {
@@ -23,7 +24,9 @@ export const SettingsModal = ({ isOpen, onClose }) => {
 
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [supabaseKey, setSupabaseKey] = useState('');
+  const [groqKey, setGroqKey] = useState('');
   const [geminiKey, setGeminiKey] = useState('');
+  const [showAdvancedAi, setShowAdvancedAi] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
@@ -31,6 +34,7 @@ export const SettingsModal = ({ isOpen, onClose }) => {
       const { url, key } = getSupabaseConfig();
       setSupabaseUrl(localStorage.getItem('paisapilot_supabase_url') || url || '');
       setSupabaseKey(localStorage.getItem('paisapilot_supabase_key') || key || '');
+      setGroqKey(getGroqApiKey());
       setGeminiKey(getGeminiApiKey());
       setIsSaved(false);
     }
@@ -49,6 +53,12 @@ export const SettingsModal = ({ isOpen, onClose }) => {
       localStorage.setItem('paisapilot_supabase_key', supabaseKey.trim());
     } else {
       localStorage.removeItem('paisapilot_supabase_key');
+    }
+
+    if (groqKey.trim()) {
+      localStorage.setItem('paisapilot_groq_key', groqKey.trim());
+    } else {
+      localStorage.removeItem('paisapilot_groq_key');
     }
 
     if (geminiKey.trim()) {
@@ -75,6 +85,8 @@ export const SettingsModal = ({ isOpen, onClose }) => {
     refreshData();
   };
 
+  const activeAiName = getAiProviderName();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
       <div 
@@ -92,7 +104,7 @@ export const SettingsModal = ({ isOpen, onClose }) => {
                 App & Cloud Settings
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Configure Supabase Database & Google Gemini AI Key
+                Configure Supabase Database & Groq AI
               </p>
             </div>
           </div>
@@ -115,7 +127,7 @@ export const SettingsModal = ({ isOpen, onClose }) => {
           }`}>
             <div className="flex items-center space-x-2">
               {supabaseConnected ? <ShieldCheck className="w-4 h-4 text-emerald-600" /> : <HardDrive className="w-4 h-4 text-slate-500" />}
-              <span>Current Storage: {supabaseConnected ? 'Supabase PostgreSQL Cloud' : 'Local Storage Mode'}</span>
+              <span>Storage: {supabaseConnected ? 'Supabase PostgreSQL' : 'Local Storage Mode'}</span>
             </div>
             {supabaseConnected && (
               <button 
@@ -125,6 +137,15 @@ export const SettingsModal = ({ isOpen, onClose }) => {
                 Disconnect
               </button>
             )}
+          </div>
+
+          {/* Active AI Status */}
+          <div className="p-3 rounded-2xl border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/50 dark:bg-indigo-950/20 flex items-center justify-between text-xs">
+            <div className="flex items-center space-x-2">
+              <Zap className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span className="font-semibold text-slate-800 dark:text-slate-200">Active AI Engine:</span>
+              <span className="text-indigo-600 dark:text-indigo-400 font-bold">{activeAiName}</span>
+            </div>
           </div>
 
           {/* 1. Supabase Credentials */}
@@ -165,32 +186,65 @@ export const SettingsModal = ({ isOpen, onClose }) => {
             </p>
           </div>
 
-          {/* 2. Google Gemini API Key */}
+          {/* 2. Groq AI API Key */}
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide flex items-center space-x-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Google Gemini API Key</span>
+                <Zap className="w-3.5 h-3.5 text-amber-500" />
+                <span>Groq API Key (Recommended)</span>
               </label>
               <a
-                href="https://aistudio.google.com/app/apikey"
+                href="https://console.groq.com/keys"
                 target="_blank"
                 rel="noreferrer"
                 className="text-[11px] text-indigo-600 dark:text-indigo-400 flex items-center hover:underline"
               >
-                Free Key from AI Studio <ExternalLink className="w-3 h-3 ml-1" />
+                Free Key from Groq <ExternalLink className="w-3 h-3 ml-1" />
               </a>
             </div>
             <input
               type="password"
-              value={geminiKey}
-              onChange={(e) => setGeminiKey(e.target.value)}
-              placeholder="AIzaSy..."
+              value={groqKey}
+              onChange={(e) => setGroqKey(e.target.value)}
+              placeholder="gsk_..."
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <p className="text-[11px] text-slate-400">
-              Powers real-time natural language query answering and AI transaction extraction. If left blank, PaisaPilot runs on its built-in offline advisor.
+              Powers ultra-fast natural language parsing & intelligent financial advice via <strong className="text-slate-600 dark:text-slate-300">Llama 3.3 70B</strong>.
             </p>
+          </div>
+
+          {/* Optional Gemini Toggle */}
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => setShowAdvancedAi(!showAdvancedAi)}
+              className="text-[11px] text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 underline"
+            >
+              {showAdvancedAi ? 'Hide alternative AI settings' : '+ Use Google Gemini instead'}
+            </button>
+            {showAdvancedAi && (
+              <div className="mt-2.5 space-y-2 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Google Gemini API Key</span>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-indigo-500 hover:underline flex items-center"
+                  >
+                    AI Studio <ExternalLink className="w-3 h-3 ml-0.5" />
+                  </a>
+                </div>
+                <input
+                  type="password"
+                  value={geminiKey}
+                  onChange={(e) => setGeminiKey(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none"
+                />
+              </div>
+            )}
           </div>
 
           {/* 3. Demo / Reset Options */}
