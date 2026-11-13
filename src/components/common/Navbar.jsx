@@ -1,19 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useExpense } from '../../context/ExpenseContext';
+import { usePwaInstall } from '../../hooks/usePwaInstall';
 import { 
   PlusCircle, 
   Calendar, 
   Sparkles, 
   ChevronLeft, 
-  ChevronRight,
-  ShieldCheck,
-  HardDrive,
-  ChevronDown,
-  Clock,
-  Sun,
-  Moon,
-  Target,
-  Compass
+  ChevronRight, 
+  ShieldCheck, 
+  HardDrive, 
+  ChevronDown, 
+  Clock, 
+  Sun, 
+  Moon, 
+  Target, 
+  Compass, 
+  Menu, 
+  X,
+  Download,
+  Smartphone,
+  CheckCircle2,
+  LogIn,
+  LogOut,
+  User,
+  Cloud
 } from 'lucide-react';
 import { 
   shiftMonthStr, 
@@ -24,17 +34,27 @@ import {
 
 export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleTripsView }) => {
   const { 
-    theme,
-    toggleTheme,
+    theme, 
+    toggleTheme, 
     selectedMonth, 
     setSelectedMonth, 
     supabaseConnected, 
-    transactions,
-    trips
+    transactions, 
+    trips,
+    user,
+    logout,
+    setIsAuthModalOpen
   } = useExpense();
 
+  const { isInstallable, isInstalled, installWebApp } = usePwaInstall();
+
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
+
   const pickerRef = useRef(null);
+  const userMenuRef = useRef(null);
 
   // Month & Year state for the picker popover
   const currentMonthStr = getCurrentMonthStr();
@@ -59,14 +79,15 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
       if (pickerRef.current && !pickerRef.current.contains(e.target)) {
         setIsPickerOpen(false);
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setIsUserMenuOpen(false);
+      }
     };
-    if (isPickerOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
+    document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isPickerOpen]);
+  }, []);
 
-  // Clean, timezone-safe month shift
+  // Clean month shift
   const handleShiftMonth = (offset) => {
     const newMonth = shiftMonthStr(selectedMonth, offset);
     setSelectedMonth(newMonth);
@@ -89,6 +110,15 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
     setIsPickerOpen(false);
   };
 
+  const handleInstallClick = async () => {
+    setIsInstalling(true);
+    try {
+      await installWebApp();
+    } finally {
+      setIsInstalling(false);
+    }
+  };
+
   // Check which months have transactions in the currently viewed year
   const monthsWithData = new Set(
     transactions
@@ -98,104 +128,94 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
 
   return (
     <header className="sticky top-0 z-30 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 transition-colors">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20 gap-2 sm:gap-4">
           
-          {/* Logo & Brand Identity */}
-          <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-emerald-400 flex items-center justify-center shadow-md shadow-indigo-500/20 text-white font-black text-base sm:text-xl">
-              ₹
+          {/* Logo & Brand Title */}
+          <div className="flex items-center space-x-2.5 sm:space-x-3 shrink-0">
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 ring-2 ring-indigo-500/20">
+              <span className="font-extrabold text-lg sm:text-xl tracking-tight">₹</span>
             </div>
-            <div>
-              <div className="flex items-center space-x-1 sm:space-x-1.5">
-                <span className="text-base sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">
-                  PaisaPilot
-                </span>
-                <span className="px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60">
-                  AI
-                </span>
-              </div>
-              <p className="hidden md:block text-[11px] font-medium text-slate-400">
-                Next-Gen Indian Expense & Budget Tracker
-              </p>
+            <div className="flex flex-col">
+              <span className="font-extrabold text-base sm:text-lg tracking-tight bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-800 dark:from-white dark:via-indigo-200 dark:to-slate-200 bg-clip-text text-transparent">
+                PaisaPilot
+              </span>
+              <span className="text-[10px] sm:text-xs font-semibold text-indigo-700 dark:text-indigo-400 -mt-1 tracking-wider uppercase">
+                AI Expense Guide
+              </span>
             </div>
           </div>
 
-          {/* Month Navigator & Jump Popover */}
-          <div className="relative shrink min-w-0" ref={pickerRef}>
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800/90 rounded-2xl p-0.5 sm:p-1 shadow-inner border border-slate-200/60 dark:border-slate-700/60">
+          {/* Month Navigator & Popover Picker */}
+          <div className="relative shrink-0" ref={pickerRef}>
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800/90 rounded-2xl p-1 border border-slate-200/60 dark:border-slate-700/60 shadow-sm">
               <button
                 onClick={() => handleShiftMonth(-1)}
-                disabled={selectedMonth === 'all'}
-                aria-label="Previous month"
-                className="p-1 sm:p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition shadow-sm shrink-0"
+                className="p-1 sm:p-1.5 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 transition"
+                title="Previous Month"
+                aria-label="Previous Month"
               >
-                <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <ChevronLeft className="w-4 h-4" />
               </button>
 
               <button
                 onClick={() => setIsPickerOpen(!isPickerOpen)}
-                className="flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-4 py-1 sm:py-1.5 rounded-xl hover:bg-white dark:hover:bg-slate-700 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 transition shadow-sm truncate"
-                title="Click to jump to another month or year"
+                className="flex items-center space-x-1.5 px-2 sm:px-3 py-1 rounded-xl text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 hover:bg-white dark:hover:bg-slate-700 transition"
+                title="Choose Month & Year"
               >
-                <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-500 shrink-0 hidden xs:inline-block" />
-                <span className="truncate max-w-[95px] xs:max-w-none sm:min-w-[100px] text-center">
-                  {formatMonthTitle(selectedMonth)}
-                </span>
-                <ChevronDown className={`w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 transition-transform shrink-0 ${isPickerOpen ? 'rotate-180' : ''}`} />
+                <Calendar className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                <span className="whitespace-nowrap">{formatMonthTitle(selectedMonth)}</span>
+                <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isPickerOpen ? 'rotate-180' : ''}`} />
               </button>
 
               <button
                 onClick={() => handleShiftMonth(1)}
-                disabled={selectedMonth === 'all'}
-                aria-label="Next month"
-                className="p-1 sm:p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition shadow-sm shrink-0"
+                className="p-1 sm:p-1.5 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 transition"
+                title="Next Month"
+                aria-label="Next Month"
               >
-                <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Comprehensive Month/Year Dropdown Picker */}
+            {/* Month & Year Picker Dropdown */}
             {isPickerOpen && (
-              <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-72 sm:w-80 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50 animate-fadeIn">
-                
-                {/* Year Header Selector */}
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="absolute top-full left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                   <button
                     onClick={() => setActiveYear((y) => y - 1)}
-                    className="p-1 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
+                  <span className="text-sm font-extrabold text-slate-800 dark:text-white">
                     {activeYear}
                   </span>
                   <button
                     onClick={() => setActiveYear((y) => y + 1)}
-                    className="p-1 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
 
-                {/* 12 Months Grid */}
-                <div className="grid grid-cols-3 gap-2 py-3">
+                <div className="grid grid-cols-3 gap-1.5">
                   {MONTH_SHORT_NAMES.map((mName, idx) => {
-                    const monthKey = `${activeYear}-${String(idx + 1).padStart(2, '0')}`;
-                    const isSelected = selectedMonth === monthKey;
-                    const isCurrent = currentMonthStr === monthKey;
+                    const monthVal = `${activeYear}-${String(idx + 1).padStart(2, '0')}`;
+                    const isSelected = selectedMonth === monthVal;
+                    const isCurrent = currentMonthStr === monthVal;
                     const hasTransactions = monthsWithData.has(idx);
 
                     return (
                       <button
                         key={mName}
                         onClick={() => handleSelectMonth(idx)}
-                        className={`py-2 px-2.5 rounded-xl text-xs font-semibold relative transition ${
+                        className={`relative py-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center ${
                           isSelected
                             ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                             : isCurrent
-                            ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800'
-                            : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                            ? 'border-2 border-indigo-500/80 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50'
+                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
                         }`}
                       >
                         <span>{mName}</span>
@@ -207,7 +227,6 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
                   })}
                 </div>
 
-                {/* Quick Filters Footer */}
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
                   <button
                     onClick={handleJumpToCurrent}
@@ -227,32 +246,73 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
                     All History
                   </button>
                 </div>
-
               </div>
             )}
           </div>
 
-          {/* Action Buttons & Status */}
-          <div className="flex items-center space-x-1.5 sm:space-x-2.5 shrink-0">
-            {/* Supabase Status Badge */}
-            <div
-              className={`hidden lg:flex items-center px-2.5 py-1.5 rounded-xl text-xs font-medium border ${
-                supabaseConnected
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                  : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
-              }`}
-              title={supabaseConnected ? 'Synced with Supabase Cloud' : 'Running in Local Mode'}
-            >
-              {supabaseConnected ? (
-                <>
-                  <ShieldCheck className="w-3.5 h-3.5 mr-1.5 text-emerald-600 dark:text-emerald-400" />
-                  <span>Cloud</span>
-                </>
+          {/* Desktop Actions (visible on md+) */}
+          <div className="hidden md:flex items-center space-x-2 sm:space-x-2.5 shrink-0">
+            {/* Install the Web App Button (PWA) */}
+            {!isInstalled && (
+              <button
+                onClick={handleInstallClick}
+                disabled={isInstalling}
+                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800/80 transition active:scale-95 shadow-sm"
+                title="Install PaisaPilot Web App directly on your device"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Install Web App</span>
+              </button>
+            )}
+
+            {/* User Account / Auth & Sync Button */}
+            <div className="relative" ref={userMenuRef}>
+              {user ? (
+                <button
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  className="flex items-center space-x-2 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold transition hover:bg-emerald-100/60 active:scale-95"
+                  title="Multi-Device Sync Active"
+                >
+                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-[11px] shadow-sm">
+                    {user.email ? user.email.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                  <span className="max-w-[110px] truncate">{user.user_metadata?.full_name || user.email?.split('@')[0]}</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                </button>
               ) : (
-                <>
-                  <HardDrive className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
-                  <span>Local</span>
-                </>
+                <button
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-indigo-500 transition active:scale-95 shadow-sm"
+                  title="Sign in to sync your expenses across all devices"
+                >
+                  <Cloud className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Sync Devices</span>
+                </button>
+              )}
+
+              {/* User Dropdown Menu */}
+              {isUserMenuOpen && user && (
+                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 z-50 space-y-3">
+                  <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <p className="text-xs text-slate-400">Signed in as</p>
+                    <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{user.email}</p>
+                    <div className="mt-2 flex items-center space-x-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Multi-Device Sync Active</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      logout();
+                    }}
+                    className="w-full flex items-center space-x-2 py-2 px-3 rounded-xl text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -281,7 +341,7 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
               title="Trips & Hackathons Dedicated Budgets"
             >
               <Compass className="w-4 h-4" />
-              <span className="hidden sm:inline">Trips</span>
+              <span>Trips</span>
               {trips && trips.length > 0 && (
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
               )}
@@ -294,7 +354,7 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
               title="Manage Budgets"
             >
               <Target className="w-4 h-4 text-indigo-500" />
-              <span className="hidden sm:inline">Budgets</span>
+              <span>Budgets</span>
             </button>
 
             {/* Quick Add Button */}
@@ -303,13 +363,171 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
               className="flex items-center space-x-1 sm:space-x-1.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-semibold px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-lg shadow-indigo-600/25 active:scale-95 transition"
             >
               <PlusCircle className="w-4 h-4" />
-              <span className="text-xs sm:text-sm hidden xs:inline">Add</span>
-              <span className="text-xs sm:text-sm hidden md:inline">Expense</span>
+              <span className="text-xs sm:text-sm">Add Expense</span>
+            </button>
+          </div>
+
+          {/* Mobile Hamburger Button */}
+          <div className="flex md:hidden items-center space-x-1.5 shrink-0">
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 sm:p-2.5 rounded-xl text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition active:scale-95 flex items-center justify-center"
+              aria-label="Navigation Menu"
+              aria-expanded={isMobileMenuOpen}
+            >
+              {isMobileMenuOpen ? (
+                <X className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              ) : (
+                <Menu className="w-5 h-5" />
+              )}
             </button>
           </div>
 
         </div>
       </div>
+
+      {/* Mobile Drawer Menu */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden border-t border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-4 space-y-3 shadow-xl animate-fadeIn">
+          {/* Primary Action: Add Expense */}
+          <button
+            onClick={() => {
+              setIsMobileMenuOpen(false);
+              onOpenAddModal();
+            }}
+            className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-indigo-600/25 active:scale-98 transition"
+          >
+            <PlusCircle className="w-5 h-5" />
+            <span className="text-sm">Add New Expense</span>
+          </button>
+
+          {/* Install the Web App Mobile Button */}
+          {!isInstalled && (
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                handleInstallClick();
+              }}
+              className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 transition active:scale-95"
+            >
+              <Download className="w-4 h-4" />
+              <span>Install Web App</span>
+            </button>
+          )}
+
+          {/* Auth / Sync Button on Mobile */}
+          {user ? (
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center justify-between">
+              <div className="flex items-center space-x-2 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  {user.email ? user.email.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-800 dark:text-white truncate">{user.email}</p>
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center">
+                    <ShieldCheck className="w-3 h-3 mr-1" />
+                    Synced Across Devices
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  logout();
+                }}
+                className="text-xs text-red-600 dark:text-red-400 font-bold hover:underline shrink-0 ml-2"
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                setIsAuthModalOpen(true);
+              }}
+              className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 transition active:scale-95"
+            >
+              <Cloud className="w-4 h-4" />
+              <span>Sign In to Sync All Devices</span>
+            </button>
+          )}
+
+          {/* Navigation Quick Links Grid */}
+          <div className="grid grid-cols-2 gap-2">
+            {/* Trips & Hackathons */}
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onToggleTripsView();
+              }}
+              className={`flex items-center space-x-2 p-3 rounded-xl text-xs font-bold border transition active:scale-95 ${
+                activeTab === 'trips'
+                  ? 'bg-violet-600 text-white border-violet-600 shadow-md shadow-violet-600/20'
+                  : 'bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800/60'
+              }`}
+            >
+              <Compass className="w-4 h-4 shrink-0" />
+              <span className="truncate">Trips & Events</span>
+              {trips && trips.length > 0 && (
+                <span className="ml-auto w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              )}
+            </button>
+
+            {/* Set Budgets */}
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onOpenBudgetModal();
+              }}
+              className="flex items-center space-x-2 p-3 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 transition active:scale-95"
+            >
+              <Target className="w-4 h-4 text-indigo-500 shrink-0" />
+              <span className="truncate">Set Budgets</span>
+            </button>
+          </div>
+
+          {/* Utility Row: Theme Toggle & Cloud Status */}
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+            <button
+              onClick={toggleTheme}
+              className="flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition active:scale-95"
+            >
+              {theme === 'dark' ? (
+                <>
+                  <Sun className="w-4 h-4 text-amber-400" />
+                  <span>Light Mode</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-4 h-4 text-indigo-600" />
+                  <span>Dark Mode</span>
+                </>
+              )}
+            </button>
+
+            <div
+              className={`flex items-center px-3 py-1.5 rounded-xl text-xs font-medium border ${
+                supabaseConnected
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                  : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+              }`}
+            >
+              {supabaseConnected ? (
+                <>
+                  <ShieldCheck className="w-3.5 h-3.5 mr-1.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>Cloud Live</span>
+                </>
+              ) : (
+                <>
+                  <HardDrive className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+                  <span>Local Mode</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

@@ -1,5 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { getSupabase, getSupabaseConfig } from '../api/supabase';
+import { 
+  getSupabase, 
+  getSupabaseConfig, 
+  signInWithEmail, 
+  signUpWithEmail, 
+  signOutUser, 
+  getAuthSession, 
+  subscribeToAuthChanges 
+} from '../api/supabase';
 import { DEFAULT_CATEGORIES, PAYMENT_MODES } from '../utils/formatters';
 import { INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_TRIPS } from '../utils/initialData';
 import { getCurrentMonthStr, getTodayDateStr } from '../utils/dateUtils';
@@ -33,6 +41,13 @@ export const ExpenseProvider = ({ children }) => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
+  // Auth State
+  const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // App Data State
   const [transactions, setTransactions] = useState(() => {
     const saved = localStorage.getItem('paisapilot_transactions');
     return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
@@ -94,8 +109,8 @@ export const ExpenseProvider = ({ children }) => {
     localStorage.setItem('paisapilot_trips', JSON.stringify(trips));
   }, [trips]);
 
-  // Load from Supabase if configured
-  const loadSupabaseData = async () => {
+  // Load data from Supabase (scoped to user if authenticated)
+  const loadSupabaseData = async (activeUser = user) => {
     const { isConfigured } = getSupabaseConfig();
     if (!isConfigured) {
       setSupabaseConnected(false);
@@ -107,28 +122,72 @@ export const ExpenseProvider = ({ children }) => {
 
     try {
       setIsSyncing(true);
-      const { data: txData, error: txError } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('date', { ascending: false });
 
-      if (txError) throw txError;
-
-      if (txData && txData.length > 0) {
+      // 1. Transactions
+      let txQuery = supabase.from('transactions').select('*').order('date', { ascending: false });
+      if (activeUser?.id) {
+        txQuery = txQuery.eq('user_id', activeUser.id);
+      }
+      const { data: txData, error: txError } = await txQuery;
+      if (!txError && txData) {
         setTransactions(txData);
       }
 
-      // Also load categories from Supabase
-      const { data: catData, error: catError } = await supabase
-        .from('categories')
-        .select('*');
-
+      // 2. Categories
+      const { data: catData, error: catError } = await supabase.from('categories').select('*');
       if (!catError && catData && catData.length > 0) {
         setCategories((prev) => {
           const names = new Set(prev.map((c) => c.name.toLowerCase()));
           const newFromCloud = catData.filter((c) => !names.has(c.name.toLowerCase()));
           return [...prev, ...newFromCloud];
         });
+      }
+
+      // 3. User-specific data (Trips, Budgets, Starting Balances)
+      if (activeUser?.id) {
+        // Trips
+        const { data: tripData, error: tripError } = await supabase
+          .from('trips')
+          .select('*')
+          .eq('user_id', activeUser.id)
+          .order('created_at', { ascending: false });
+        if (!tripError && tripData) {
+          setTrips(
+            tripData.map((t) => ({
+              id: t.id,
+              name: t.name,
+              type: t.type,
+              budget: Number(t.budget),
+              startDate: t.start_date,
+              endDate: t.end_date,
+              status: t.status,
+              created_at: t.created_at,
+            }))
+          );
+        }
+
+        // Budgets
+        const { data: budgetData, error: budgetError } = await supabase
+          .from('budgets')
+          .select('*')
+          .eq('user_id', activeUser.id);
+        if (!budgetError && budgetData && budgetData.length > 0) {
+          const bMap = {};
+          budgetData.forEach((b) => {
+            bMap[b.category_name] = Number(b.monthly_limit);
+          });
+          setBudgets((prev) => ({ ...prev, ...bMap }));
+        }
+
+        // User Account Balances
+        const { data: profileData, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', activeUser.id)
+          .maybeSingle();
+        if (!profileError && profileData?.starting_balances) {
+          setStartingBalances(profileData.starting_balances);
+        }
       }
 
       setSupabaseConnected(true);
@@ -140,14 +199,126 @@ export const ExpenseProvider = ({ children }) => {
     }
   };
 
+  // Auth initialization & listener
   useEffect(() => {
-    loadSupabaseData();
+    let subscription = null;
+
+    getAuthSession()
+      .then((sess) => {
+        setSession(sess);
+        const currentUser = sess?.user || null;
+        setUser(currentUser);
+        setIsAuthLoading(false);
+        loadSupabaseData(currentUser);
+      })
+      .catch((err) => {
+        console.warn('Auth session init error:', err);
+        setIsAuthLoading(false);
+        loadSupabaseData(null);
+      });
+
+    subscription = subscribeToAuthChanges((event, newSession) => {
+      setSession(newSession);
+      const currentUser = newSession?.user || null;
+      setUser(currentUser);
+      if (currentUser) {
+        loadSupabaseData(currentUser);
+      }
+    });
+
+    return () => {
+      if (subscription?.unsubscribe) {
+        subscription.unsubscribe();
+      }
+    };
   }, []);
+
+  // Multi-Device Realtime Sync Subscription
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase || !supabaseConnected || !user?.id) return;
+
+    const channel = supabase
+      .channel(`device-sync-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
+        () => {
+          loadSupabaseData(user);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'trips', filter: `user_id=eq.${user.id}` },
+        () => {
+          loadSupabaseData(user);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'budgets', filter: `user_id=eq.${user.id}` },
+        () => {
+          loadSupabaseData(user);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_profiles', filter: `user_id=eq.${user.id}` },
+        () => {
+          loadSupabaseData(user);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, supabaseConnected]);
+
+  // Auth Action Methods
+  const login = async (email, password) => {
+    const data = await signInWithEmail(email, password);
+    setSession(data.session);
+    setUser(data.user);
+    if (data.user) {
+      await loadSupabaseData(data.user);
+    }
+    return data;
+  };
+
+  const signup = async (email, password, fullName) => {
+    const data = await signUpWithEmail(email, password, fullName);
+    if (data?.session) {
+      setSession(data.session);
+      setUser(data.user);
+      if (data.user) {
+        await loadSupabaseData(data.user);
+      }
+    }
+    return data;
+  };
+
+  const logout = async () => {
+    await signOutUser();
+    setUser(null);
+    setSession(null);
+    // Reset to local sample data
+    setTransactions(INITIAL_TRANSACTIONS);
+    setTrips(INITIAL_TRIPS);
+    setBudgets(INITIAL_BUDGETS);
+    setStartingBalances({
+      'UPI': 0,
+      'Net Banking': 0,
+      'Debit Card': 0,
+      'Cash': 0,
+      'Credit Card': 0,
+    });
+  };
 
   // Add Transaction (supports regular and trip transactions)
   const addTransaction = async (newTx) => {
     const tx = {
-      id: newTx.id || `tx-${Date.now()}`,
+      id: newTx.id || `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       amount: Number(newTx.amount),
       type: newTx.type || 'expense',
       category_name: newTx.category_name || 'Food & Dining',
@@ -166,17 +337,21 @@ export const ExpenseProvider = ({ children }) => {
     const supabase = getSupabase();
     if (supabase && supabaseConnected) {
       try {
-        const descText = tx.trip_name ? `[${tx.trip_name}] ${tx.description}` : tx.description;
-        await supabase.from('transactions').insert([
-          {
-            amount: tx.amount,
-            type: tx.type,
-            category_name: tx.category_name,
-            payment_mode: tx.payment_mode,
-            description: descText,
-            date: tx.date,
-          },
-        ]);
+        const payload = {
+          id: tx.id,
+          amount: tx.amount,
+          type: tx.type,
+          category_name: tx.category_name,
+          payment_mode: tx.payment_mode,
+          description: tx.description,
+          trip_id: tx.trip_id,
+          trip_name: tx.trip_name,
+          date: tx.date,
+        };
+        if (user?.id) {
+          payload.user_id = user.id;
+        }
+        await supabase.from('transactions').upsert([payload]);
       } catch (err) {
         console.error('Failed to sync transaction to Supabase:', err);
       }
@@ -202,22 +377,26 @@ export const ExpenseProvider = ({ children }) => {
     const supabase = getSupabase();
     if (supabase && supabaseConnected) {
       try {
-        await supabase.from('categories').insert([{
+        const payload = {
           name: category.name,
           icon: category.icon,
           color: category.color,
           type: category.type,
-        }]);
+        };
+        if (user?.id) {
+          payload.user_id = user.id;
+        }
+        await supabase.from('categories').insert([payload]);
       } catch (err) {
         console.error('Failed to sync category to Supabase:', err);
       }
     }
   };
 
-  // Trip Management
-  const addTrip = (newTrip) => {
+  // Trip Management with Supabase multi-device sync
+  const addTrip = async (newTrip) => {
     const trip = {
-      id: newTrip.id || `trip-${Date.now()}`,
+      id: newTrip.id || `trip-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       name: newTrip.name.trim(),
       type: newTrip.type || 'hackathon',
       budget: Number(newTrip.budget) || 0,
@@ -227,14 +406,60 @@ export const ExpenseProvider = ({ children }) => {
       created_at: new Date().toISOString(),
     };
     setTrips((prev) => [trip, ...prev]);
+
+    const supabase = getSupabase();
+    if (supabase && supabaseConnected && user?.id) {
+      try {
+        await supabase.from('trips').upsert([
+          {
+            id: trip.id,
+            user_id: user.id,
+            name: trip.name,
+            type: trip.type,
+            budget: trip.budget,
+            start_date: trip.startDate,
+            end_date: trip.endDate,
+            status: trip.status,
+          },
+        ]);
+      } catch (err) {
+        console.error('Failed to sync trip to Supabase:', err);
+      }
+    }
   };
 
-  const updateTrip = (id, updatedFields) => {
+  const updateTrip = async (id, updatedFields) => {
     setTrips((prev) => prev.map((t) => (t.id === id ? { ...t, ...updatedFields } : t)));
+
+    const supabase = getSupabase();
+    if (supabase && supabaseConnected && user?.id) {
+      try {
+        const payload = {};
+        if (updatedFields.name !== undefined) payload.name = updatedFields.name;
+        if (updatedFields.type !== undefined) payload.type = updatedFields.type;
+        if (updatedFields.budget !== undefined) payload.budget = Number(updatedFields.budget);
+        if (updatedFields.startDate !== undefined) payload.start_date = updatedFields.startDate;
+        if (updatedFields.endDate !== undefined) payload.end_date = updatedFields.endDate;
+        if (updatedFields.status !== undefined) payload.status = updatedFields.status;
+
+        await supabase.from('trips').update(payload).eq('id', id).eq('user_id', user.id);
+      } catch (err) {
+        console.error('Failed to update trip on Supabase:', err);
+      }
+    }
   };
 
-  const deleteTrip = (id) => {
+  const deleteTrip = async (id) => {
     setTrips((prev) => prev.filter((t) => t.id !== id));
+
+    const supabase = getSupabase();
+    if (supabase && supabaseConnected && user?.id) {
+      try {
+        await supabase.from('trips').delete().eq('id', id).eq('user_id', user.id);
+      } catch (err) {
+        console.error('Failed to delete trip from Supabase:', err);
+      }
+    }
   };
 
   // Delete Transaction
@@ -244,7 +469,11 @@ export const ExpenseProvider = ({ children }) => {
     const supabase = getSupabase();
     if (supabase && supabaseConnected) {
       try {
-        await supabase.from('transactions').delete().eq('id', id);
+        let query = supabase.from('transactions').delete().eq('id', id);
+        if (user?.id) {
+          query = query.eq('user_id', user.id);
+        }
+        await query;
       } catch (err) {
         console.error('Failed to delete from Supabase:', err);
       }
@@ -259,24 +488,61 @@ export const ExpenseProvider = ({ children }) => {
     const supabase = getSupabase();
     if (supabase && supabaseConnected) {
       try {
-        await supabase.from('transactions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        let query = supabase.from('transactions').delete();
+        if (user?.id) {
+          query = query.eq('user_id', user.id);
+        } else {
+          query = query.neq('id', '00000000-0000-0000-0000-000000000000');
+        }
+        await query;
       } catch (err) {
         console.error('Failed to clear transactions from Supabase:', err);
       }
     }
   };
 
-  // Update Budget limit
-  const setCategoryBudget = (categoryName, limit) => {
+  // Update Budget limit with multi-device sync
+  const setCategoryBudget = async (categoryName, limit) => {
     setBudgets((prev) => ({
       ...prev,
       [categoryName]: Number(limit),
     }));
+
+    const supabase = getSupabase();
+    if (supabase && supabaseConnected && user?.id) {
+      try {
+        await supabase.from('budgets').upsert([
+          {
+            user_id: user.id,
+            category_name: categoryName,
+            monthly_limit: Number(limit),
+            month: selectedMonth || getCurrentMonthStr(),
+          },
+        ]);
+      } catch (err) {
+        console.error('Failed to sync budget to Supabase:', err);
+      }
+    }
   };
 
-  // Update Initial Balances
-  const updateStartingBalances = (newBalances) => {
+  // Update Initial Balances with multi-device sync
+  const updateStartingBalances = async (newBalances) => {
     setStartingBalances(newBalances);
+
+    const supabase = getSupabase();
+    if (supabase && supabaseConnected && user?.id) {
+      try {
+        await supabase.from('user_profiles').upsert([
+          {
+            user_id: user.id,
+            starting_balances: newBalances,
+            updated_at: new Date().toISOString(),
+          },
+        ]);
+      } catch (err) {
+        console.error('Failed to sync starting balances to Supabase:', err);
+      }
+    }
   };
 
   // Clear or reset demo data
@@ -343,7 +609,7 @@ export const ExpenseProvider = ({ children }) => {
         expense: 0,
         balance: startAmt,
         startingBalance: startAmt,
-        count: 0
+        count: 0,
       };
     });
 
@@ -357,7 +623,7 @@ export const ExpenseProvider = ({ children }) => {
           expense: 0,
           balance: startAmt,
           startingBalance: startAmt,
-          count: 0
+          count: 0,
         };
       }
       const amt = Number(t.amount) || 0;
@@ -473,10 +739,8 @@ export const ExpenseProvider = ({ children }) => {
       }))
       .sort((a, b) => b.amount - a.amount);
 
-    // Top category
     const topCategory = categoryBreakdown.length > 0 ? categoryBreakdown[0] : null;
 
-    // Daily average based on days elapsed in month
     const today = new Date();
     const currentDay = today.getDate();
     const dailyAverage = currentDay > 0 ? Math.round(expense / currentDay) : expense;
@@ -497,6 +761,16 @@ export const ExpenseProvider = ({ children }) => {
   const value = {
     theme,
     toggleTheme,
+    // Auth & User
+    user,
+    session,
+    isAuthLoading,
+    isAuthModalOpen,
+    setIsAuthModalOpen,
+    login,
+    signup,
+    logout,
+    // Transactions & Trips
     transactions,
     categories,
     budgets,
@@ -527,7 +801,7 @@ export const ExpenseProvider = ({ children }) => {
     resetToSampleData,
     supabaseConnected,
     isSyncing,
-    refreshData: loadSupabaseData,
+    refreshData: () => loadSupabaseData(user),
     filteredTransactions,
     monthlyTransactions,
     paymentModeBalances,

@@ -8,6 +8,7 @@ import { SmartBudgetAlert } from './components/dashboard/SmartBudgetAlert';
 import { TransactionList } from './components/transactions/TransactionList';
 import { AddTransactionModal } from './components/transactions/AddTransactionModal';
 import { BudgetManagerModal } from './components/budget/BudgetManagerModal';
+import { AuthModal } from './components/auth/AuthModal';
 import { AiAdvisorWidget } from './components/ai-advisor/AiAdvisorWidget';
 import { TripsSection } from './components/trips/TripsSection';
 import { LayoutDashboard, Compass } from 'lucide-react';
@@ -18,7 +19,7 @@ function DashboardContent() {
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [openAiTrigger, setOpenAiTrigger] = useState(false);
   const [selectedTripForAdd, setSelectedTripForAdd] = useState(null);
-  const { trips } = useExpense();
+  const { trips, isAuthModalOpen, setIsAuthModalOpen } = useExpense();
 
   // Global keyboard shortcut: Press "n" or "N" to open quick add
   useEffect(() => {
@@ -153,6 +154,12 @@ function DashboardContent() {
       <BudgetManagerModal
         isOpen={isBudgetModalOpen}
         onClose={() => setIsBudgetModalOpen(false)}
+      />
+
+      {/* Multi-Device Authentication & Cloud Sync Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
       />
 
       {/* Floating AI Financial Advisor */}

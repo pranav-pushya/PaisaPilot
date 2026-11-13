@@ -3,6 +3,7 @@ import { useExpense } from '../../context/ExpenseContext';
 import { formatINR, formatFriendlyDate } from '../../utils/formatters';
 import { CategoryIcon, PaymentModeIcon } from '../common/CategoryIcon';
 import { AddTripModal } from './AddTripModal';
+import { EditTransactionModal } from '../transactions/EditTransactionModal';
 import { 
   Compass, 
   Laptop, 
@@ -15,7 +16,8 @@ import {
   CheckCircle,
   Calendar,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Pencil
 } from 'lucide-react';
 
 export const TripsSection = ({ onOpenAddExpenseForTrip }) => {
@@ -23,6 +25,7 @@ export const TripsSection = ({ onOpenAddExpenseForTrip }) => {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [expandedTripId, setExpandedTripId] = useState(null);
+  const [editingTx, setEditingTx] = useState(null);
 
   const toggleExpand = (id) => {
     setExpandedTripId((prev) => (prev === id ? null : id));
@@ -271,10 +274,17 @@ export const TripsSection = ({ onOpenAddExpenseForTrip }) => {
                               </div>
                             </div>
 
-                            <div className="flex items-center space-x-2 shrink-0">
+                            <div className="flex items-center space-x-1.5 shrink-0">
                               <span className="font-bold text-slate-900 dark:text-white">
                                 {formatINR(tx.amount)}
                               </span>
+                              <button
+                                onClick={() => setEditingTx(tx)}
+                                className="p-1 rounded text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                                title="Edit"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
                               <button
                                 onClick={() => deleteTransaction(tx.id)}
                                 className="p-1 rounded text-slate-400 hover:text-rose-500"
@@ -299,6 +309,15 @@ export const TripsSection = ({ onOpenAddExpenseForTrip }) => {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
       />
+
+      {/* Edit Transaction Modal */}
+      {editingTx && (
+        <EditTransactionModal
+          isOpen={Boolean(editingTx)}
+          transaction={editingTx}
+          onClose={() => setEditingTx(null)}
+        />
+      )}
     </div>
   );
 };

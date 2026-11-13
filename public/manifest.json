@@ -1,0 +1,19 @@
+{
+  "name": "PaisaPilot - Personal AI Expense Guide",
+  "short_name": "PaisaPilot",
+  "description": "Smart personal AI expense guide, budgeting, and trip tracker for India",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "48x48 72x72 96x96 128x128 192x192 256x256 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

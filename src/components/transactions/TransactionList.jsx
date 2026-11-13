@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { useExpense } from '../../context/ExpenseContext';
 import { formatINR, formatFriendlyDate, PAYMENT_MODES } from '../../utils/formatters';
 import { CategoryIcon, PaymentModeIcon } from '../common/CategoryIcon';
+import { EditTransactionModal } from './EditTransactionModal';
 import { 
   Search, 
   Trash2, 
   Download, 
   ListFilter,
   AlertTriangle,
-  Compass
+  Compass,
+  Pencil
 } from 'lucide-react';
 
 export const TransactionList = () => {
@@ -33,6 +35,7 @@ export const TransactionList = () => {
 
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [isConfirmingClearAll, setIsConfirmingClearAll] = useState(false);
+  const [editingTx, setEditingTx] = useState(null);
 
   // Export current filtered list to CSV
   const handleExportCSV = () => {
@@ -240,11 +243,20 @@ export const TransactionList = () => {
                       {tx.description || '-'}
                     </span>
 
-                    <div className="flex items-center space-x-2 shrink-0">
+                    <div className="flex items-center space-x-1.5 shrink-0">
                       <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                         <PaymentModeIcon mode={tx.payment_mode} className="w-3 h-3" />
                         <span>{tx.payment_mode}</span>
                       </span>
+
+                      {/* Edit Button */}
+                      <button
+                        onClick={() => setEditingTx(tx)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition"
+                        title="Edit transaction"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
 
                       {confirmDeleteId === tx.id ? (
                         <div className="flex items-center space-x-1">
@@ -361,7 +373,7 @@ export const TransactionList = () => {
                         </span>
                       </td>
 
-                      {/* Delete action */}
+                      {/* Actions: Edit & Delete */}
                       <td className="py-3.5 px-3 whitespace-nowrap text-center">
                         {confirmDeleteId === tx.id ? (
                           <div className="flex items-center justify-center space-x-1">
@@ -383,13 +395,22 @@ export const TransactionList = () => {
                             </button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => setConfirmDeleteId(tx.id)}
-                            className="p-1.5 rounded-lg text-slate-300 group-hover:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
-                            title="Delete Transaction"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center justify-center space-x-1">
+                            <button
+                              onClick={() => setEditingTx(tx)}
+                              className="p-1.5 rounded-lg text-slate-300 group-hover:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition"
+                              title="Edit Transaction"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(tx.id)}
+                              className="p-1.5 rounded-lg text-slate-300 group-hover:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                              title="Delete Transaction"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -437,6 +458,15 @@ export const TransactionList = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Transaction Modal */}
+      {editingTx && (
+        <EditTransactionModal
+          isOpen={Boolean(editingTx)}
+          transaction={editingTx}
+          onClose={() => setEditingTx(null)}
+        />
       )}
 
     </div>

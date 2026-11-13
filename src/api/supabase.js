@@ -31,11 +31,83 @@ export const getSupabase = () => {
   if (!isConfigured) return null;
 
   if (!clientInstance) {
-    clientInstance = createClient(url, key);
+    clientInstance = createClient(url, key, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    });
   }
   return clientInstance;
 };
 
 export const resetSupabaseClient = () => {
   clientInstance = null;
+};
+
+// ==========================================
+// Authentication Helpers
+// ==========================================
+
+export const signUpWithEmail = async (email, password, fullName = '') => {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error('Supabase is not configured.');
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        full_name: fullName,
+      },
+    },
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+export const signInWithEmail = async (email, password) => {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error('Supabase is not configured.');
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+export const signOutUser = async () => {
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
+};
+
+export const getAuthSession = async () => {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error) {
+    console.warn('Error fetching auth session:', error);
+    return null;
+  }
+  return session;
+};
+
+export const subscribeToAuthChanges = (callback) => {
+  const supabase = getSupabase();
+  if (!supabase) return { unsubscribe: () => {} };
+
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    callback(event, session);
+  });
+
+  return subscription;
 };
