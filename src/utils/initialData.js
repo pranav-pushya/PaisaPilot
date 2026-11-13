@@ -9,6 +9,27 @@ const getRecentDate = (daysAgo) => {
   return `${year}-${month}-${day}`;
 };
 
+export const INITIAL_TRIPS = [
+  {
+    id: 'trip-hackindia',
+    name: 'HackIndia 2026 Hackathon',
+    type: 'hackathon',
+    budget: 8000,
+    startDate: getRecentDate(4),
+    endDate: getRecentDate(2),
+    status: 'active',
+  },
+  {
+    id: 'trip-goa',
+    name: 'Goa Weekend Trip',
+    type: 'trip',
+    budget: 15000,
+    startDate: getRecentDate(20),
+    endDate: getRecentDate(17),
+    status: 'completed',
+  },
+];
+
 export const INITIAL_TRANSACTIONS = [
   {
     id: 'tx-1',
@@ -52,7 +73,9 @@ export const INITIAL_TRANSACTIONS = [
     type: 'expense',
     category_name: 'Transport & Fuel',
     payment_mode: 'UPI',
-    description: 'Uber Auto to office',
+    description: 'Uber Auto to hackathon venue',
+    trip_id: 'trip-hackindia',
+    trip_name: 'HackIndia 2026 Hackathon',
     date: getRecentDate(5),
   },
   {
@@ -70,7 +93,9 @@ export const INITIAL_TRANSACTIONS = [
     type: 'expense',
     category_name: 'Food & Dining',
     payment_mode: 'UPI',
-    description: 'Swiggy Biryani Order',
+    description: 'Midnight Pizza & Red Bull for team',
+    trip_id: 'trip-hackindia',
+    trip_name: 'HackIndia 2026 Hackathon',
     date: getRecentDate(2),
   },
   {

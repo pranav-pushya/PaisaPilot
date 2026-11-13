@@ -12,7 +12,8 @@ import {
   Clock,
   Sun,
   Moon,
-  Target
+  Target,
+  Compass
 } from 'lucide-react';
 import { 
   shiftMonthStr, 
@@ -21,14 +22,15 @@ import {
   MONTH_SHORT_NAMES 
 } from '../../utils/dateUtils';
 
-export const Navbar = ({ onOpenAddModal, onOpenBudgetModal }) => {
+export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleTripsView }) => {
   const { 
     theme,
     toggleTheme,
     selectedMonth, 
     setSelectedMonth, 
     supabaseConnected, 
-    transactions 
+    transactions,
+    trips
   } = useExpense();
 
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -265,6 +267,23 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal }) => {
                 <Sun className="w-4 h-4 text-amber-400" />
               ) : (
                 <Moon className="w-4 h-4 text-indigo-600" />
+              )}
+            </button>
+
+            {/* Trips & Hackathons Shortcut Button */}
+            <button
+              onClick={onToggleTripsView}
+              className={`flex items-center space-x-1 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold border transition active:scale-95 ${
+                activeTab === 'trips'
+                  ? 'bg-violet-600 text-white border-violet-600 shadow-md shadow-violet-600/20'
+                  : 'text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/60 hover:bg-violet-100 dark:hover:bg-violet-900/60 border-violet-200 dark:border-violet-800/60'
+              }`}
+              title="Trips & Hackathons Dedicated Budgets"
+            >
+              <Compass className="w-4 h-4" />
+              <span className="hidden sm:inline">Trips</span>
+              {trips && trips.length > 0 && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
               )}
             </button>
 

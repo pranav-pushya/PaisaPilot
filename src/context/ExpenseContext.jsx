@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { getSupabase, getSupabaseConfig } from '../api/supabase';
-import { DEFAULT_CATEGORIES } from '../utils/formatters';
-import { INITIAL_TRANSACTIONS, INITIAL_BUDGETS } from '../utils/initialData';
+import { DEFAULT_CATEGORIES, PAYMENT_MODES } from '../utils/formatters';
+import { INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_TRIPS } from '../utils/initialData';
 import { getCurrentMonthStr, getTodayDateStr } from '../utils/dateUtils';
 
 const ExpenseContext = createContext(null);
@@ -48,15 +48,32 @@ export const ExpenseProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : INITIAL_BUDGETS;
   });
 
+  const [trips, setTrips] = useState(() => {
+    const saved = localStorage.getItem('paisapilot_trips');
+    return saved ? JSON.parse(saved) : INITIAL_TRIPS;
+  });
+
+  const [startingBalances, setStartingBalances] = useState(() => {
+    const saved = localStorage.getItem('paisapilot_starting_balances');
+    return saved ? JSON.parse(saved) : {
+      'UPI': 0,
+      'Net Banking': 0,
+      'Debit Card': 0,
+      'Cash': 0,
+      'Credit Card': 0,
+    };
+  });
+
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterPaymentMode, setFilterPaymentMode] = useState('all');
   const [filterType, setFilterType] = useState('all');
+  const [filterTrip, setFilterTrip] = useState('all'); // 'all' | 'regular' | trip_id
   const [isSyncing, setIsSyncing] = useState(false);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
 
-  // Sync to localStorage as backup / default mode
+  // Sync to localStorage
   useEffect(() => {
     localStorage.setItem('paisapilot_transactions', JSON.stringify(transactions));
   }, [transactions]);
@@ -68,6 +85,14 @@ export const ExpenseProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('paisapilot_categories', JSON.stringify(categories));
   }, [categories]);
+
+  useEffect(() => {
+    localStorage.setItem('paisapilot_starting_balances', JSON.stringify(startingBalances));
+  }, [startingBalances]);
+
+  useEffect(() => {
+    localStorage.setItem('paisapilot_trips', JSON.stringify(trips));
+  }, [trips]);
 
   // Load from Supabase if configured
   const loadSupabaseData = async () => {
@@ -93,6 +118,19 @@ export const ExpenseProvider = ({ children }) => {
         setTransactions(txData);
       }
 
+      // Also load categories from Supabase
+      const { data: catData, error: catError } = await supabase
+        .from('categories')
+        .select('*');
+
+      if (!catError && catData && catData.length > 0) {
+        setCategories((prev) => {
+          const names = new Set(prev.map((c) => c.name.toLowerCase()));
+          const newFromCloud = catData.filter((c) => !names.has(c.name.toLowerCase()));
+          return [...prev, ...newFromCloud];
+        });
+      }
+
       setSupabaseConnected(true);
     } catch (err) {
       console.warn('Could not fetch from Supabase, staying on local store:', err.message);
@@ -106,7 +144,7 @@ export const ExpenseProvider = ({ children }) => {
     loadSupabaseData();
   }, []);
 
-  // Add Transaction
+  // Add Transaction (supports regular and trip transactions)
   const addTransaction = async (newTx) => {
     const tx = {
       id: newTx.id || `tx-${Date.now()}`,
@@ -115,6 +153,8 @@ export const ExpenseProvider = ({ children }) => {
       category_name: newTx.category_name || 'Food & Dining',
       payment_mode: newTx.payment_mode || 'UPI',
       description: newTx.description || '',
+      trip_id: newTx.trip_id || null,
+      trip_name: newTx.trip_name || null,
       date: newTx.date || getTodayDateStr(),
       created_at: new Date().toISOString(),
     };
@@ -126,13 +166,14 @@ export const ExpenseProvider = ({ children }) => {
     const supabase = getSupabase();
     if (supabase && supabaseConnected) {
       try {
+        const descText = tx.trip_name ? `[${tx.trip_name}] ${tx.description}` : tx.description;
         await supabase.from('transactions').insert([
           {
             amount: tx.amount,
             type: tx.type,
             category_name: tx.category_name,
             payment_mode: tx.payment_mode,
-            description: tx.description,
+            description: descText,
             date: tx.date,
           },
         ]);
@@ -140,6 +181,60 @@ export const ExpenseProvider = ({ children }) => {
         console.error('Failed to sync transaction to Supabase:', err);
       }
     }
+  };
+
+  // Add Category
+  const addCategory = async (newCat) => {
+    const category = {
+      id: newCat.id || `cat-${Date.now()}`,
+      name: newCat.name.trim(),
+      icon: newCat.icon || 'Tag',
+      color: newCat.color || '#6366f1',
+      type: newCat.type || 'expense',
+    };
+
+    setCategories((prev) => {
+      const exists = prev.some((c) => c.name.toLowerCase() === category.name.toLowerCase());
+      if (exists) return prev;
+      return [...prev, category];
+    });
+
+    const supabase = getSupabase();
+    if (supabase && supabaseConnected) {
+      try {
+        await supabase.from('categories').insert([{
+          name: category.name,
+          icon: category.icon,
+          color: category.color,
+          type: category.type,
+        }]);
+      } catch (err) {
+        console.error('Failed to sync category to Supabase:', err);
+      }
+    }
+  };
+
+  // Trip Management
+  const addTrip = (newTrip) => {
+    const trip = {
+      id: newTrip.id || `trip-${Date.now()}`,
+      name: newTrip.name.trim(),
+      type: newTrip.type || 'hackathon',
+      budget: Number(newTrip.budget) || 0,
+      startDate: newTrip.startDate || getTodayDateStr(),
+      endDate: newTrip.endDate || getTodayDateStr(),
+      status: newTrip.status || 'active',
+      created_at: new Date().toISOString(),
+    };
+    setTrips((prev) => [trip, ...prev]);
+  };
+
+  const updateTrip = (id, updatedFields) => {
+    setTrips((prev) => prev.map((t) => (t.id === id ? { ...t, ...updatedFields } : t)));
+  };
+
+  const deleteTrip = (id) => {
+    setTrips((prev) => prev.filter((t) => t.id !== id));
   };
 
   // Delete Transaction
@@ -179,13 +274,29 @@ export const ExpenseProvider = ({ children }) => {
     }));
   };
 
+  // Update Initial Balances
+  const updateStartingBalances = (newBalances) => {
+    setStartingBalances(newBalances);
+  };
+
   // Clear or reset demo data
   const resetToSampleData = () => {
     setTransactions(INITIAL_TRANSACTIONS);
     setBudgets(INITIAL_BUDGETS);
     setCategories(DEFAULT_CATEGORIES);
+    setTrips(INITIAL_TRIPS);
+    setStartingBalances({
+      'UPI': 0,
+      'Net Banking': 0,
+      'Debit Card': 0,
+      'Cash': 0,
+      'Credit Card': 0,
+    });
     localStorage.removeItem('paisapilot_transactions');
     localStorage.removeItem('paisapilot_budgets');
+    localStorage.removeItem('paisapilot_categories');
+    localStorage.removeItem('paisapilot_trips');
+    localStorage.removeItem('paisapilot_starting_balances');
     setSelectedMonth(getCurrentMonthStr());
   };
 
@@ -203,17 +314,104 @@ export const ExpenseProvider = ({ children }) => {
       const matchesSearch =
         searchQuery === '' ||
         (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        t.category_name.toLowerCase().includes(searchQuery.toLowerCase());
+        t.category_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.trip_name && t.trip_name.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchesCat = filterCategory === 'all' || t.category_name === filterCategory;
       const matchesMode = filterPaymentMode === 'all' || t.payment_mode === filterPaymentMode;
       const matchesType = filterType === 'all' || t.type === filterType;
 
-      return matchesSearch && matchesCat && matchesMode && matchesType;
-    });
-  }, [monthlyTransactions, searchQuery, filterCategory, filterPaymentMode, filterType]);
+      const matchesTrip =
+        filterTrip === 'all'
+          ? true
+          : filterTrip === 'regular'
+          ? !t.trip_id
+          : t.trip_id === filterTrip;
 
-  // 3. Computed Financial Stats
+      return matchesSearch && matchesCat && matchesMode && matchesType && matchesTrip;
+    });
+  }, [monthlyTransactions, searchQuery, filterCategory, filterPaymentMode, filterType, filterTrip]);
+
+  // 3. All-time Payment Mode Balances (Unified account balances)
+  const { paymentModeBalances, totalLiquidFunds } = useMemo(() => {
+    const map = {};
+    PAYMENT_MODES.forEach((mode) => {
+      const startAmt = Number(startingBalances[mode]) || 0;
+      map[mode] = {
+        mode,
+        income: 0,
+        expense: 0,
+        balance: startAmt,
+        startingBalance: startAmt,
+        count: 0
+      };
+    });
+
+    transactions.forEach((t) => {
+      const mode = t.payment_mode || 'UPI';
+      if (!map[mode]) {
+        const startAmt = Number(startingBalances[mode]) || 0;
+        map[mode] = {
+          mode,
+          income: 0,
+          expense: 0,
+          balance: startAmt,
+          startingBalance: startAmt,
+          count: 0
+        };
+      }
+      const amt = Number(t.amount) || 0;
+      map[mode].count += 1;
+      if (t.type === 'income') {
+        map[mode].income += amt;
+        map[mode].balance += amt;
+      } else {
+        map[mode].expense += amt;
+        map[mode].balance -= amt;
+      }
+    });
+
+    const balances = Object.values(map);
+
+    // Liquid funds = bank + upi + cash + debit (excluding credit card debt)
+    let liquid = 0;
+    balances.forEach((b) => {
+      if (b.mode !== 'Credit Card') {
+        liquid += b.balance;
+      }
+    });
+
+    return {
+      paymentModeBalances: balances,
+      totalLiquidFunds: liquid,
+    };
+  }, [transactions, startingBalances]);
+
+  // 4. Trip Stats & Progress
+  const tripStats = useMemo(() => {
+    return trips.map((trip) => {
+      const tripTxns = transactions.filter((t) => t.trip_id === trip.id);
+      let totalSpent = 0;
+      tripTxns.forEach((t) => {
+        if (t.type === 'expense') totalSpent += Number(t.amount) || 0;
+      });
+      const remaining = trip.budget - totalSpent;
+      const percentage = trip.budget > 0 ? Math.round((totalSpent / trip.budget) * 100) : 0;
+      const isOverBudget = trip.budget > 0 && totalSpent > trip.budget;
+
+      return {
+        ...trip,
+        totalSpent,
+        remaining,
+        percentage,
+        isOverBudget,
+        transactions: tripTxns,
+        transactionCount: tripTxns.length,
+      };
+    });
+  }, [trips, transactions]);
+
+  // 5. Computed Financial Stats for selected period
   const financialStats = useMemo(() => {
     let income = 0;
     let expense = 0;
@@ -302,6 +500,13 @@ export const ExpenseProvider = ({ children }) => {
     transactions,
     categories,
     budgets,
+    trips,
+    tripStats,
+    addTrip,
+    updateTrip,
+    deleteTrip,
+    startingBalances,
+    updateStartingBalances,
     selectedMonth,
     setSelectedMonth,
     searchQuery,
@@ -312,7 +517,10 @@ export const ExpenseProvider = ({ children }) => {
     setFilterPaymentMode,
     filterType,
     setFilterType,
+    filterTrip,
+    setFilterTrip,
     addTransaction,
+    addCategory,
     deleteTransaction,
     clearAllTransactions,
     setCategoryBudget,
@@ -322,6 +530,8 @@ export const ExpenseProvider = ({ children }) => {
     refreshData: loadSupabaseData,
     filteredTransactions,
     monthlyTransactions,
+    paymentModeBalances,
+    totalLiquidFunds,
     ...financialStats,
   };
 

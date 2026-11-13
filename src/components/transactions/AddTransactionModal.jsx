@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useExpense } from '../../context/ExpenseContext';
 import { PAYMENT_MODES, formatINR } from '../../utils/formatters';
 import { getTodayDateStr } from '../../utils/dateUtils';
 import { parseExpensePrompt } from '../../api/gemini';
 import { CategoryIcon, PaymentModeIcon } from '../common/CategoryIcon';
+import { AddCategoryModal } from '../common/AddCategoryModal';
 import confetti from 'canvas-confetti';
 import { 
   X, 
@@ -13,15 +14,18 @@ import {
   Calendar, 
   FileText, 
   Tag, 
-  CreditCard 
+  CreditCard,
+  Plus,
+  Compass
 } from 'lucide-react';
 
-export const AddTransactionModal = ({ isOpen, onClose }) => {
-  const { categories, addTransaction } = useExpense();
+export const AddTransactionModal = ({ isOpen, onClose, defaultTripId = null }) => {
+  const { categories, addTransaction, trips } = useExpense();
 
   const [activeTab, setActiveTab] = useState('smart'); // 'smart' | 'manual'
   const [smartPrompt, setSmartPrompt] = useState('');
   const [isAiParsing, setIsAiParsing] = useState(false);
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
 
   // Form Fields
   const [amount, setAmount] = useState('');
@@ -30,7 +34,19 @@ export const AddTransactionModal = ({ isOpen, onClose }) => {
   const [paymentMode, setPaymentMode] = useState('UPI');
   const [date, setDate] = useState(getTodayDateStr());
   const [description, setDescription] = useState('');
+  const [selectedTripId, setSelectedTripId] = useState(defaultTripId || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (defaultTripId) {
+        setSelectedTripId(defaultTripId);
+        setActiveTab('manual');
+      } else {
+        setSelectedTripId('');
+      }
+    }
+  }, [isOpen, defaultTripId]);
 
   if (!isOpen) return null;
 
@@ -63,6 +79,8 @@ export const AddTransactionModal = ({ isOpen, onClose }) => {
 
     setIsSubmitting(true);
     try {
+      const matchedTrip = trips.find((t) => t.id === selectedTripId);
+
       await addTransaction({
         amount: parseFloat(amount),
         type,
@@ -70,6 +88,8 @@ export const AddTransactionModal = ({ isOpen, onClose }) => {
         payment_mode: paymentMode,
         date,
         description: description.trim() || categoryName,
+        trip_id: matchedTrip ? matchedTrip.id : null,
+        trip_name: matchedTrip ? matchedTrip.name : null,
       });
 
       // Celebration burst!
@@ -84,6 +104,7 @@ export const AddTransactionModal = ({ isOpen, onClose }) => {
       setAmount('');
       setDescription('');
       setSmartPrompt('');
+      setSelectedTripId('');
       onClose();
     } catch (err) {
       console.error('Failed to add transaction:', err);
@@ -93,64 +114,64 @@ export const AddTransactionModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
       <div 
-        className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden"
+        className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Modal Header */}
-        <div className="p-5 sm:p-6 pb-0 flex items-center justify-between">
+        {/* Header */}
+        <div className="p-4 sm:p-6 pb-3 sm:pb-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
               Add New Transaction
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Log an expense or income in Indian Rupees (₹)
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
+              Record expense, income, or event spend
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="px-5 sm:px-6 pt-4">
-          <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700">
+        {/* Tab Switcher: Smart AI vs Manual */}
+        <div className="px-4 sm:px-6 pt-3 sm:pt-4">
+          <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
             <button
               type="button"
               onClick={() => setActiveTab('smart')}
-              className={`flex items-center justify-center py-2 text-xs sm:text-sm font-semibold rounded-xl transition ${
+              className={`flex items-center justify-center space-x-1.5 py-2 rounded-xl text-xs font-bold transition ${
                 activeTab === 'smart'
                   ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 mr-1.5 text-indigo-500" />
-              AI Natural Text
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Smart AI Parser</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('manual')}
-              className={`flex items-center justify-center py-2 text-xs sm:text-sm font-semibold rounded-xl transition ${
+              className={`flex items-center justify-center space-x-1.5 py-2 rounded-xl text-xs font-bold transition ${
                 activeTab === 'manual'
                   ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              Manual Form
+              <span>Manual Form</span>
             </button>
           </div>
         </div>
 
         {/* Content Area */}
-        <div className="p-5 sm:p-6">
+        <div className="p-4 sm:p-6 max-h-[75vh] overflow-y-auto">
           {activeTab === 'smart' ? (
             /* Smart AI Input Tab */
             <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-xs text-indigo-900 dark:text-indigo-200">
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-xs text-indigo-900 dark:text-indigo-200">
                 <span className="font-semibold block mb-1">💡 Try typing naturally:</span>
                 "Paid ₹450 for Swiggy dinner with friends via UPI"<br/>
                 "Spent 1800 on petrol using HDFC card"<br/>
@@ -163,13 +184,13 @@ export const AddTransactionModal = ({ isOpen, onClose }) => {
                   onChange={(e) => setSmartPrompt(e.target.value)}
                   placeholder="Describe your transaction in plain English..."
                   rows={3}
-                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
 
                 <button
                   type="submit"
                   disabled={isAiParsing || !smartPrompt.trim()}
-                  className="w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/25 disabled:opacity-50 transition"
+                  className="w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-indigo-600/25 disabled:opacity-50 transition"
                 >
                   {isAiParsing ? (
                     <>
@@ -187,7 +208,7 @@ export const AddTransactionModal = ({ isOpen, onClose }) => {
             </div>
           ) : (
             /* Manual Form */
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4">
               
               {/* Type Switcher: Expense / Income */}
               <div className="grid grid-cols-2 gap-2">
@@ -231,7 +252,8 @@ export const AddTransactionModal = ({ isOpen, onClose }) => {
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    autoFocus
                   />
                 </div>
                 {amount && (
@@ -245,9 +267,19 @@ export const AddTransactionModal = ({ isOpen, onClose }) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Category */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Category
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Category
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddCategoryOpen(true)}
+                      className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center space-x-0.5"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>New</span>
+                    </button>
+                  </div>
                   <select
                     value={categoryName}
                     onChange={(e) => setCategoryName(e.target.value)}
@@ -282,6 +314,31 @@ export const AddTransactionModal = ({ isOpen, onClose }) => {
                 </div>
               </div>
 
+              {/* Tag to Trip / Hackathon */}
+              {trips && trips.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center space-x-1.5">
+                    <Compass className="w-3.5 h-3.5 text-violet-500" />
+                    <span>Tag to Trip / Hackathon (Optional)</span>
+                  </label>
+                  <select
+                    value={selectedTripId}
+                    onChange={(e) => setSelectedTripId(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-violet-50/50 dark:bg-violet-950/20 border border-violet-200/80 dark:border-violet-900/50 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  >
+                    <option value="">None (Regular Living Expense)</option>
+                    {trips.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.type === 'hackathon' ? '💻' : t.type === 'trip' ? '✈️' : '🎟️'} {t.name} (Budget: {formatINR(t.budget)})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Tracks against this event's allotted budget while deducting from your chosen payment mode account balance.
+                  </p>
+                </div>
+              )}
+
               {/* Date & Note */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -304,7 +361,7 @@ export const AddTransactionModal = ({ isOpen, onClose }) => {
                     type="text"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="e.g. Swiggy, Metro pass"
+                    placeholder="e.g. Swiggy, Metro pass, Hotel"
                     className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
@@ -315,7 +372,7 @@ export const AddTransactionModal = ({ isOpen, onClose }) => {
                 <button
                   type="submit"
                   disabled={isSubmitting || !amount}
-                  className="w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-lg shadow-indigo-600/25 disabled:opacity-50 transition"
+                  className="w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-indigo-600/25 disabled:opacity-50 transition active:scale-95"
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -333,6 +390,15 @@ export const AddTransactionModal = ({ isOpen, onClose }) => {
         </div>
 
       </div>
+
+      <AddCategoryModal
+        isOpen={isAddCategoryOpen}
+        onClose={() => setIsAddCategoryOpen(false)}
+        defaultType={type}
+        onCategoryCreated={(newCat) => {
+          setCategoryName(newCat.name);
+        }}
+      />
     </div>
   );
 };

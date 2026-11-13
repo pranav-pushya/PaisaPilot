@@ -8,8 +8,7 @@ import {
   Download, 
   ListFilter,
   AlertTriangle,
-  X,
-  Check
+  Compass
 } from 'lucide-react';
 
 export const TransactionList = () => {
@@ -23,7 +22,10 @@ export const TransactionList = () => {
     setFilterPaymentMode,
     filterType,
     setFilterType,
+    filterTrip,
+    setFilterTrip,
     categories,
+    trips,
     deleteTransaction,
     clearAllTransactions,
     selectedMonth,
@@ -36,12 +38,13 @@ export const TransactionList = () => {
   const handleExportCSV = () => {
     if (filteredTransactions.length === 0) return;
 
-    const headers = ['Date', 'Type', 'Category', 'Description', 'Payment Mode', 'Amount (INR)'];
+    const headers = ['Date', 'Type', 'Category', 'Description', 'Event / Trip', 'Payment Mode', 'Amount (INR)'];
     const rows = filteredTransactions.map((t) => [
       t.date,
       t.type,
       `"${t.category_name}"`,
       `"${(t.description || '').replace(/"/g, '""')}"`,
+      `"${(t.trip_name || 'Regular').replace(/"/g, '""')}"`,
       t.payment_mode,
       t.amount,
     ]);
@@ -104,7 +107,7 @@ export const TransactionList = () => {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-4 pb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 pt-4 pb-4">
         
         {/* Search */}
         <div className="relative">
@@ -113,7 +116,7 @@ export const TransactionList = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search description or category..."
+            placeholder="Search description, category..."
             className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
@@ -124,7 +127,7 @@ export const TransactionList = () => {
           onChange={(e) => setFilterType(e.target.value)}
           className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value="all">All Types (Income & Expense)</option>
+          <option value="all">All Types</option>
           <option value="expense">Expense Only</option>
           <option value="income">Income Only</option>
         </select>
@@ -149,10 +152,25 @@ export const TransactionList = () => {
           onChange={(e) => setFilterPaymentMode(e.target.value)}
           className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value="all">All Payment Modes</option>
+          <option value="all">All Modes</option>
           {PAYMENT_MODES.map((mode) => (
             <option key={mode} value={mode}>
               {mode}
+            </option>
+          ))}
+        </select>
+
+        {/* Trip Filter */}
+        <select
+          value={filterTrip}
+          onChange={(e) => setFilterTrip(e.target.value)}
+          className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="all">All Spends (Events + Regular)</option>
+          <option value="regular">Regular Spends Only</option>
+          {trips.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.type === 'hackathon' ? '💻' : '✈️'} {t.name}
             </option>
           ))}
         </select>
@@ -192,9 +210,16 @@ export const TransactionList = () => {
                         <CategoryIcon iconName={categoryObj.icon} className="w-4 h-4" />
                       </div>
                       <div>
-                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                          {tx.category_name}
-                        </h4>
+                        <div className="flex items-center space-x-1.5">
+                          <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                            {tx.category_name}
+                          </h4>
+                          {tx.trip_name && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300 border border-violet-200/60 dark:border-violet-800/60 truncate max-w-[100px]">
+                              {tx.trip_name}
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[10px] text-slate-400">
                           {formatFriendlyDate(tx.date)}
                         </span>
@@ -211,7 +236,7 @@ export const TransactionList = () => {
                   </div>
 
                   <div className="flex items-center justify-between pl-10.5 text-xs text-slate-500 dark:text-slate-400">
-                    <span className="truncate max-w-[200px] text-slate-700 dark:text-slate-300">
+                    <span className="truncate max-w-[180px] text-slate-700 dark:text-slate-300">
                       {tx.description || '-'}
                     </span>
 
@@ -262,6 +287,7 @@ export const TransactionList = () => {
                 <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                   <th className="py-3 px-3">Date</th>
                   <th className="py-3 px-3">Category</th>
+                  <th className="py-3 px-3">Event / Trip</th>
                   <th className="py-3 px-3">Description</th>
                   <th className="py-3 px-3">Payment</th>
                   <th className="py-3 px-3 text-right">Amount</th>
@@ -301,8 +327,20 @@ export const TransactionList = () => {
                         </div>
                       </td>
 
+                      {/* Event / Trip Tag */}
+                      <td className="py-3.5 px-3 whitespace-nowrap">
+                        {tx.trip_name ? (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300 border border-violet-200/60 dark:border-violet-800/60">
+                            <Compass className="w-3 h-3 text-violet-500" />
+                            <span>{tx.trip_name}</span>
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-[11px]">Regular</span>
+                        )}
+                      </td>
+
                       {/* Description */}
-                      <td className="py-3.5 px-3 max-w-[220px] truncate text-slate-700 dark:text-slate-300 font-medium">
+                      <td className="py-3.5 px-3 max-w-[200px] truncate text-slate-700 dark:text-slate-300 font-medium">
                         {tx.description || '-'}
                       </td>
 
