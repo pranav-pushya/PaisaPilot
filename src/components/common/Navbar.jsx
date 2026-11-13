@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useExpense } from '../../context/ExpenseContext';
-import { usePwaInstall } from '../../hooks/usePwaInstall';
 import { 
   PlusCircle, 
   Calendar, 
@@ -17,9 +16,6 @@ import {
   Compass, 
   Menu, 
   X,
-  Download,
-  Smartphone,
-  CheckCircle2,
   LogIn,
   LogOut,
   User,
@@ -46,12 +42,9 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
     setIsAuthModalOpen
   } = useExpense();
 
-  const { isInstallable, isInstalled, installWebApp } = usePwaInstall();
-
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isInstalling, setIsInstalling] = useState(false);
 
   const pickerRef = useRef(null);
   const userMenuRef = useRef(null);
@@ -108,15 +101,6 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
   const handleSelectAllTime = () => {
     setSelectedMonth('all');
     setIsPickerOpen(false);
-  };
-
-  const handleInstallClick = async () => {
-    setIsInstalling(true);
-    try {
-      await installWebApp();
-    } finally {
-      setIsInstalling(false);
-    }
   };
 
   // Check which months have transactions in the currently viewed year
@@ -252,19 +236,6 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
 
           {/* Desktop Actions (visible on md+) */}
           <div className="hidden md:flex items-center space-x-2 sm:space-x-2.5 shrink-0">
-            {/* Install the Web App Button (PWA) */}
-            {!isInstalled && (
-              <button
-                onClick={handleInstallClick}
-                disabled={isInstalling}
-                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800/80 transition active:scale-95 shadow-sm"
-                title="Install PaisaPilot Web App directly on your device"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Install Web App</span>
-              </button>
-            )}
-
             {/* User Account / Auth & Sync Button */}
             <div className="relative" ref={userMenuRef}>
               {user ? (
@@ -400,20 +371,6 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
             <PlusCircle className="w-5 h-5" />
             <span className="text-sm">Add New Expense</span>
           </button>
-
-          {/* Install the Web App Mobile Button */}
-          {!isInstalled && (
-            <button
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                handleInstallClick();
-              }}
-              className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 transition active:scale-95"
-            >
-              <Download className="w-4 h-4" />
-              <span>Install Web App</span>
-            </button>
-          )}
 
           {/* Auth / Sync Button on Mobile */}
           {user ? (

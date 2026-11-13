@@ -9,6 +9,7 @@ import { TransactionList } from './components/transactions/TransactionList';
 import { AddTransactionModal } from './components/transactions/AddTransactionModal';
 import { BudgetManagerModal } from './components/budget/BudgetManagerModal';
 import { AuthModal } from './components/auth/AuthModal';
+import { MobileInstallPrompt } from './components/common/MobileInstallPrompt';
 import { AiAdvisorWidget } from './components/ai-advisor/AiAdvisorWidget';
 import { TripsSection } from './components/trips/TripsSection';
 import { LayoutDashboard, Compass } from 'lucide-react';
@@ -161,6 +162,9 @@ function DashboardContent() {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
       />
+
+      {/* Mobile-Only Bottom Left Install Web App Notification */}
+      <MobileInstallPrompt />
 
       {/* Floating AI Financial Advisor */}
       <AiAdvisorWidget key={String(openAiTrigger)} />
