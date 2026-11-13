@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePwaInstall } from '../../hooks/usePwaInstall';
-import { Download, X, Smartphone, Sparkles } from 'lucide-react';
+import { Download, X, Smartphone, ArrowUpRight } from 'lucide-react';
 
 export const MobileInstallPrompt = () => {
   const { isInstallable, isInstalled, installWebApp } = usePwaInstall();
@@ -8,6 +8,7 @@ export const MobileInstallPrompt = () => {
     return sessionStorage.getItem('paisapilot_install_dismissed') === 'true';
   });
   const [isInstalling, setIsInstalling] = useState(false);
+  const [showIosTip, setShowIosTip] = useState(false);
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false;
     return (
@@ -35,66 +36,66 @@ export const MobileInstallPrompt = () => {
   const handleInstall = async () => {
     setIsInstalling(true);
     try {
-      await installWebApp();
+      const res = await installWebApp();
+      if (!res?.success && res?.reason === 'no-prompt') {
+        // Show gentle iOS / browser fallback tip
+        setShowIosTip(true);
+        setTimeout(() => setShowIosTip(false), 5000);
+      }
     } finally {
       setIsInstalling(false);
     }
   };
 
-  // Only show on mobile, when not installed, and not dismissed
+  // Only show on mobile devices, when not already installed and not dismissed
   if (!isMobile || isInstalled || isDismissed) {
     return null;
   }
 
   return (
-    <div className="fixed bottom-4 left-4 z-40 max-w-[300px] w-[calc(100vw-32px)] sm:w-auto md:hidden animate-slideUp">
-      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-indigo-200/80 dark:border-indigo-800/80 rounded-2xl p-3.5 shadow-2xl shadow-indigo-900/20 relative">
-        {/* Close / Dismiss Button */}
+    <div className="fixed bottom-4 left-3 z-40 max-w-[205px] md:hidden animate-slideUp pointer-events-auto">
+      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-indigo-200/90 dark:border-indigo-800/90 rounded-2xl p-2.5 shadow-2xl shadow-indigo-950/30 relative">
+        {/* Close Button */}
         <button
           onClick={handleDismiss}
-          className="absolute top-2.5 right-2.5 p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+          className="absolute top-1.5 right-1.5 p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
           aria-label="Dismiss install notification"
         >
-          <X className="w-4 h-4" />
+          <X className="w-3.5 h-3.5" />
         </button>
 
-        <div className="flex items-start space-x-3 pr-5">
-          {/* App Icon / Badge */}
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-600/30">
-            <span className="font-extrabold text-base">₹</span>
+        <div className="flex items-center space-x-2 pr-4">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <span className="font-extrabold text-xs">₹</span>
           </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center space-x-1">
-              <h4 className="text-xs font-extrabold text-slate-900 dark:text-white leading-tight">
-                Install PaisaPilot
-              </h4>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-              Fast 1-tap mobile access & offline support.
+          <div className="min-w-0">
+            <h4 className="text-[11px] font-extrabold text-slate-900 dark:text-white truncate leading-tight">
+              Download App
+            </h4>
+            <p className="text-[9px] text-slate-500 dark:text-slate-400 truncate">
+              Native mobile feel
             </p>
           </div>
         </div>
 
         {/* Action Button */}
-        <div className="mt-3 flex items-center space-x-2">
+        <div className="mt-2">
           <button
             onClick={handleInstall}
             disabled={isInstalling}
-            className="flex-1 flex items-center justify-center space-x-1.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold py-2 px-3 rounded-xl text-xs shadow-md shadow-indigo-600/25 active:scale-95 transition"
+            className="w-full flex items-center justify-center space-x-1.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold py-1.5 px-2 rounded-xl text-[11px] shadow-sm shadow-indigo-600/30 active:scale-95 transition"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>{isInstalling ? 'Installing...' : 'Install Web App'}</span>
-          </button>
-          
-          <button
-            onClick={handleDismiss}
-            className="px-2.5 py-2 rounded-xl text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-          >
-            Later
+            <Download className="w-3 h-3" />
+            <span>{isInstalling ? 'Installing...' : 'Install App'}</span>
           </button>
         </div>
+
+        {/* iOS / Fallback Tip */}
+        {showIosTip && (
+          <div className="mt-1.5 p-1.5 bg-indigo-50 dark:bg-indigo-950/70 rounded-lg text-[9px] text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 leading-tight animate-fadeIn">
+            Tap browser menu or Share &gt; <b>Add to Home Screen</b>
+          </div>
+        )}
       </div>
     </div>
   );

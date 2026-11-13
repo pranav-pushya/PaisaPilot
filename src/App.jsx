@@ -48,7 +48,7 @@ function DashboardContent() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white w-full max-w-full overflow-x-hidden">
       {/* Top Navigation */}
       <Navbar
         onOpenAddModal={() => {
@@ -61,32 +61,32 @@ function DashboardContent() {
       />
 
       {/* Main Content Dashboard */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-5 sm:space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
         
-        {/* View Switcher Tabs */}
-        <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-3">
-          <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+        {/* View Switcher Tabs (iOS Segmented Style on Mobile) */}
+        <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2.5">
+          <div className="grid grid-cols-2 w-full sm:w-auto sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800">
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`flex items-center space-x-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 ${
+              className={`flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 ${
                 activeTab === 'dashboard'
                   ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <LayoutDashboard className="w-4 h-4" />
-              <span>Main Dashboard</span>
+              <LayoutDashboard className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <span><span className="hidden sm:inline">Main </span>Dashboard</span>
             </button>
             <button
               onClick={() => setActiveTab('trips')}
-              className={`flex items-center space-x-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 ${
+              className={`flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 ${
                 activeTab === 'trips'
                   ? 'bg-violet-600 text-white shadow-sm shadow-violet-600/30'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Compass className="w-4 h-4" />
-              <span>Trips & Hackathons</span>
+              <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <span>Trips<span className="hidden sm:inline"> & Hackathons</span></span>
               {trips && trips.length > 0 && (
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                   activeTab === 'trips' ? 'bg-violet-800 text-white' : 'bg-violet-100 dark:bg-violet-950 text-violet-600 dark:text-violet-400'

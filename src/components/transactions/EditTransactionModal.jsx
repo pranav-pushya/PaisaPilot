@@ -167,7 +167,14 @@ export const EditTransactionModal = ({ isOpen, transaction, onClose }) => {
             </div>
             <select
               value={categoryName}
-              onChange={(e) => setCategoryName(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCategoryName(val);
+                const matchedCat = categories.find((c) => c.name === val);
+                if (matchedCat?.type) {
+                  setType(matchedCat.type);
+                }
+              }}
               className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {categories.map((cat) => (

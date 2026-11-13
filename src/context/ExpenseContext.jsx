@@ -12,6 +12,45 @@ import { DEFAULT_CATEGORIES, PAYMENT_MODES } from '../utils/formatters';
 import { INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_TRIPS } from '../utils/initialData';
 import { getCurrentMonthStr, getTodayDateStr } from '../utils/dateUtils';
 
+// UUID Helpers for Supabase Postgres UUID compatibility
+export const isUUID = (str) => {
+  if (typeof str !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+};
+
+export const ensureUUID = (id) => {
+  if (id && isUUID(id)) return id;
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
+export const parseTransactionRow = (t) => {
+  let tripName = t.trip_name || null;
+  let cleanDesc = t.description || '';
+
+  if (!tripName && cleanDesc.startsWith('[')) {
+    const match = cleanDesc.match(/^\[(.*?)\]\s*(.*)$/);
+    if (match) {
+      tripName = match[1];
+      cleanDesc = match[2];
+    }
+  }
+
+  return {
+    ...t,
+    amount: Number(t.amount) || 0,
+    description: cleanDesc,
+    trip_name: tripName,
+    trip_id: t.trip_id || null,
+  };
+};
+
 const ExpenseContext = createContext(null);
 
 export const ExpenseProvider = ({ children }) => {
@@ -123,14 +162,21 @@ export const ExpenseProvider = ({ children }) => {
     try {
       setIsSyncing(true);
 
-      // 1. Transactions
+      // 1. Transactions - query user transactions or unassigned (pre-login) transactions
       let txQuery = supabase.from('transactions').select('*').order('date', { ascending: false });
       if (activeUser?.id) {
-        txQuery = txQuery.eq('user_id', activeUser.id);
+        txQuery = txQuery.or(`user_id.eq.${activeUser.id},user_id.is.null`);
       }
       const { data: txData, error: txError } = await txQuery;
       if (!txError && txData) {
-        setTransactions(txData);
+        const parsedData = txData.map(parseTransactionRow);
+
+        // Retain only local items that are truly pending cloud upload
+        setTransactions((prev) => {
+          const cloudIds = new Set(parsedData.map((item) => item.id));
+          const pendingSync = prev.filter((item) => item._pendingCloudSync && !cloudIds.has(item.id));
+          return [...pendingSync, ...parsedData];
+        });
       }
 
       // 2. Categories
@@ -143,49 +189,47 @@ export const ExpenseProvider = ({ children }) => {
         });
       }
 
-      // 3. User-specific data (Trips, Budgets, Starting Balances)
+      // 3. User-specific / Shared data (Trips, Budgets, Starting Balances)
+      let tripQuery = supabase.from('trips').select('*').order('created_at', { ascending: false });
       if (activeUser?.id) {
-        // Trips
-        const { data: tripData, error: tripError } = await supabase
-          .from('trips')
-          .select('*')
-          .eq('user_id', activeUser.id)
-          .order('created_at', { ascending: false });
-        if (!tripError && tripData) {
-          setTrips(
-            tripData.map((t) => ({
-              id: t.id,
-              name: t.name,
-              type: t.type,
-              budget: Number(t.budget),
-              startDate: t.start_date,
-              endDate: t.end_date,
-              status: t.status,
-              created_at: t.created_at,
-            }))
-          );
-        }
+        tripQuery = tripQuery.or(`user_id.eq.${activeUser.id},user_id.is.null`);
+      }
+      const { data: tripData } = await tripQuery;
+      if (tripData) {
+        setTrips(
+          tripData.map((t) => ({
+            id: t.id,
+            name: t.name,
+            type: t.type,
+            budget: Number(t.budget),
+            startDate: t.start_date,
+            endDate: t.end_date,
+            status: t.status,
+            created_at: t.created_at,
+          }))
+        );
+      }
 
-        // Budgets
-        const { data: budgetData, error: budgetError } = await supabase
-          .from('budgets')
-          .select('*')
-          .eq('user_id', activeUser.id);
-        if (!budgetError && budgetData && budgetData.length > 0) {
-          const bMap = {};
-          budgetData.forEach((b) => {
-            bMap[b.category_name] = Number(b.monthly_limit);
-          });
-          setBudgets((prev) => ({ ...prev, ...bMap }));
-        }
+      let budgetQuery = supabase.from('budgets').select('*');
+      if (activeUser?.id) {
+        budgetQuery = budgetQuery.or(`user_id.eq.${activeUser.id},user_id.is.null`);
+      }
+      const { data: budgetData } = await budgetQuery;
+      if (budgetData && budgetData.length > 0) {
+        const bMap = {};
+        budgetData.forEach((b) => {
+          bMap[b.category_name] = Number(b.monthly_limit);
+        });
+        setBudgets((prev) => ({ ...prev, ...bMap }));
+      }
 
-        // User Account Balances
-        const { data: profileData, error: profileError } = await supabase
+      if (activeUser?.id) {
+        const { data: profileData } = await supabase
           .from('user_profiles')
           .select('*')
           .eq('user_id', activeUser.id)
           .maybeSingle();
-        if (!profileError && profileData?.starting_balances) {
+        if (profileData?.starting_balances) {
           setStartingBalances(profileData.starting_balances);
         }
       }
@@ -236,34 +280,65 @@ export const ExpenseProvider = ({ children }) => {
   // Multi-Device Realtime Sync Subscription
   useEffect(() => {
     const supabase = getSupabase();
-    if (!supabase || !supabaseConnected || !user?.id) return;
+    if (!supabase) return;
 
+    const channelName = user?.id ? `device-sync-${user.id}` : 'device-sync-public';
     const channel = supabase
-      .channel(`device-sync-${user.id}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
+        { event: '*', schema: 'public', table: 'transactions' },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old?.id;
+            if (deletedId) {
+              setTransactions((prev) => prev.filter((t) => t.id !== deletedId));
+            }
+          } else if (payload.eventType === 'INSERT') {
+            if (payload.new) {
+              const newTx = parseTransactionRow(payload.new);
+              setTransactions((prev) => {
+                const exists = prev.some((t) => t.id === newTx.id);
+                if (exists) {
+                  return prev.map((t) => (t.id === newTx.id ? { ...t, ...newTx, _pendingCloudSync: false } : t));
+                }
+                return [newTx, ...prev];
+              });
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            if (payload.new) {
+              const updatedTx = parseTransactionRow(payload.new);
+              setTransactions((prev) =>
+                prev.map((t) => (t.id === updatedTx.id ? { ...t, ...updatedTx, _pendingCloudSync: false } : t))
+              );
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'trips' },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old?.id;
+            if (deletedId) {
+              setTrips((prev) => prev.filter((t) => t.id !== deletedId));
+            }
+          } else {
+            loadSupabaseData(user);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'budgets' },
         () => {
           loadSupabaseData(user);
         }
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'trips', filter: `user_id=eq.${user.id}` },
-        () => {
-          loadSupabaseData(user);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'budgets', filter: `user_id=eq.${user.id}` },
-        () => {
-          loadSupabaseData(user);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'user_profiles', filter: `user_id=eq.${user.id}` },
+        { event: '*', schema: 'public', table: 'user_profiles' },
         () => {
           loadSupabaseData(user);
         }
@@ -273,7 +348,7 @@ export const ExpenseProvider = ({ children }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, supabaseConnected]);
+  }, [user]);
 
   // Auth Action Methods
   const login = async (email, password) => {
@@ -281,6 +356,18 @@ export const ExpenseProvider = ({ children }) => {
     setSession(data.session);
     setUser(data.user);
     if (data.user) {
+      // Claim unassigned transactions to this user
+      const supabase = getSupabase();
+      if (supabase) {
+        try {
+          await supabase
+            .from('transactions')
+            .update({ user_id: data.user.id })
+            .is('user_id', null);
+        } catch (e) {
+          console.warn('Could not claim unassigned transactions:', e);
+        }
+      }
       await loadSupabaseData(data.user);
     }
     return data;
@@ -317,8 +404,9 @@ export const ExpenseProvider = ({ children }) => {
 
   // Add Transaction (supports regular and trip transactions)
   const addTransaction = async (newTx) => {
+    const txId = ensureUUID(newTx.id);
     const tx = {
-      id: newTx.id || `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: txId,
       amount: Number(newTx.amount),
       type: newTx.type || 'expense',
       category_name: newTx.category_name || 'Food & Dining',
@@ -328,6 +416,7 @@ export const ExpenseProvider = ({ children }) => {
       trip_name: newTx.trip_name || null,
       date: newTx.date || getTodayDateStr(),
       created_at: new Date().toISOString(),
+      _pendingCloudSync: true,
     };
 
     // Update local state immediately
@@ -335,23 +424,32 @@ export const ExpenseProvider = ({ children }) => {
 
     // Push to Supabase if connected
     const supabase = getSupabase();
-    if (supabase && supabaseConnected) {
+    if (supabase) {
       try {
+        const descText = tx.trip_name
+          ? `[${tx.trip_name}] ${tx.description}`.trim()
+          : tx.description;
+
         const payload = {
           id: tx.id,
           amount: tx.amount,
           type: tx.type,
           category_name: tx.category_name,
           payment_mode: tx.payment_mode,
-          description: tx.description,
-          trip_id: tx.trip_id,
-          trip_name: tx.trip_name,
+          description: descText,
           date: tx.date,
         };
         if (user?.id) {
           payload.user_id = user.id;
         }
-        await supabase.from('transactions').upsert([payload]);
+        const { error } = await supabase.from('transactions').upsert([payload]);
+        if (error) {
+          console.error('Failed to sync transaction to Supabase:', error.message || error);
+        } else {
+          setTransactions((prev) =>
+            prev.map((t) => (t.id === tx.id ? { ...t, _pendingCloudSync: false } : t))
+          );
+        }
       } catch (err) {
         console.error('Failed to sync transaction to Supabase:', err);
       }
@@ -453,11 +551,59 @@ export const ExpenseProvider = ({ children }) => {
     setTrips((prev) => prev.filter((t) => t.id !== id));
 
     const supabase = getSupabase();
-    if (supabase && supabaseConnected && user?.id) {
+    if (supabase) {
       try {
-        await supabase.from('trips').delete().eq('id', id).eq('user_id', user.id);
+        await supabase.from('trips').delete().eq('id', id);
       } catch (err) {
         console.error('Failed to delete trip from Supabase:', err);
+      }
+    }
+  };
+
+  // Update Transaction
+  const updateTransaction = async (id, updatedFields) => {
+    const validId = ensureUUID(id);
+    const updated = {
+      amount: Number(updatedFields.amount),
+      type: updatedFields.type || 'expense',
+      category_name: updatedFields.category_name || 'Food & Dining',
+      payment_mode: updatedFields.payment_mode || 'UPI',
+      description: updatedFields.description || '',
+      trip_id: updatedFields.trip_id || null,
+      trip_name: updatedFields.trip_name || null,
+      date: updatedFields.date || getTodayDateStr(),
+    };
+
+    // Update local state immediately
+    setTransactions((prev) =>
+      prev.map((t) => (t.id === id || t.id === validId ? { ...t, ...updated, id: validId } : t))
+    );
+
+    // Sync to Supabase if connected
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const descText = updated.trip_name
+          ? `[${updated.trip_name}] ${updated.description}`.trim()
+          : updated.description;
+
+        const payload = {
+          amount: updated.amount,
+          type: updated.type,
+          category_name: updated.category_name,
+          payment_mode: updated.payment_mode,
+          description: descText,
+          date: updated.date,
+        };
+        if (user?.id) {
+          payload.user_id = user.id;
+        }
+        const { error } = await supabase.from('transactions').update(payload).eq('id', validId);
+        if (error) {
+          console.error('Failed to update transaction on Supabase:', error.message || error);
+        }
+      } catch (err) {
+        console.error('Failed to update transaction on Supabase:', err);
       }
     }
   };
@@ -467,13 +613,14 @@ export const ExpenseProvider = ({ children }) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
 
     const supabase = getSupabase();
-    if (supabase && supabaseConnected) {
+    if (supabase) {
       try {
-        let query = supabase.from('transactions').delete().eq('id', id);
-        if (user?.id) {
-          query = query.eq('user_id', user.id);
+        if (isUUID(id)) {
+          const { error } = await supabase.from('transactions').delete().eq('id', id);
+          if (error) {
+            console.error('Failed to delete transaction from Supabase:', error.message || error);
+          }
         }
-        await query;
       } catch (err) {
         console.error('Failed to delete from Supabase:', err);
       }
@@ -486,11 +633,11 @@ export const ExpenseProvider = ({ children }) => {
     localStorage.removeItem('paisapilot_transactions');
 
     const supabase = getSupabase();
-    if (supabase && supabaseConnected) {
+    if (supabase) {
       try {
         let query = supabase.from('transactions').delete();
         if (user?.id) {
-          query = query.eq('user_id', user.id);
+          query = query.or(`user_id.eq.${user.id},user_id.is.null`);
         } else {
           query = query.neq('id', '00000000-0000-0000-0000-000000000000');
         }
@@ -794,6 +941,7 @@ export const ExpenseProvider = ({ children }) => {
     filterTrip,
     setFilterTrip,
     addTransaction,
+    updateTransaction,
     addCategory,
     deleteTransaction,
     clearAllTransactions,

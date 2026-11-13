@@ -65,6 +65,26 @@ export const formatMonthTitle = (monthStr) => {
   return date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 };
 
+// Compact format for mobile header: e.g. "Nov '26" or "All"
+export const formatShortMonthTitle = (monthStr) => {
+  if (!monthStr || monthStr === 'all') {
+    return 'All';
+  }
+
+  const parts = monthStr.split('-');
+  if (parts.length < 2) return monthStr;
+
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+
+  if (isNaN(year) || isNaN(month)) return monthStr;
+
+  const date = new Date(year, month - 1, 15, 12, 0, 0);
+  const monthShort = date.toLocaleDateString('en-IN', { month: 'short' });
+  const yearShort = String(year).slice(-2);
+  return `${monthShort} '${yearShort}`;
+};
+
 // Month Names for month picker
 export const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',

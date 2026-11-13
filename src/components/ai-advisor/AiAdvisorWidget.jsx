@@ -86,26 +86,27 @@ export const AiAdvisorWidget = () => {
 
   return (
     <>
-      {/* Floating Action Button */}
+      {/* Floating Action Button - Firmly Sticky at Bottom Right */}
       {!isOpen && (
-        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
+        <div className="fixed bottom-4 right-3.5 sm:bottom-6 sm:right-6 z-50 pointer-events-auto">
           <button
             onClick={() => setIsOpen(true)}
-            className="group relative flex items-center space-x-2 sm:space-x-2.5 px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-indigo-600 via-indigo-700 to-emerald-600 text-white rounded-full shadow-2xl shadow-indigo-600/40 hover:scale-105 active:scale-95 transition-all duration-200"
+            className="group relative flex items-center space-x-2 px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-indigo-600 via-indigo-700 to-emerald-600 text-white rounded-full shadow-2xl shadow-indigo-600/50 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer ring-2 ring-white/20 dark:ring-slate-800/40"
+            aria-label="Open PaisaPilot AI Co-Pilot"
           >
-            <span className="relative flex h-2.5 w-2.5 sm:h-3 sm:w-3">
+            <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
               <span className="relative inline-flex rounded-full h-full w-full bg-emerald-400" />
             </span>
-            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300 group-hover:rotate-12 transition" />
-            <span className="text-xs sm:text-sm font-bold tracking-wide">PaisaPilot AI</span>
+            <Sparkles className="w-4 h-4 text-amber-300 group-hover:rotate-12 transition shrink-0" />
+            <span className="text-xs sm:text-sm font-bold tracking-wide whitespace-nowrap">PaisaPilot AI</span>
           </button>
         </div>
       )}
 
       {/* Floating Chat Drawer / Window */}
       {isOpen && (
-        <div className="fixed inset-x-2 bottom-2 sm:inset-x-auto sm:bottom-6 sm:right-6 z-50 sm:w-[420px] h-[540px] max-h-[88vh] bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-slideUp">
+        <div className="fixed inset-x-2 bottom-2 top-14 sm:inset-x-auto sm:top-auto sm:bottom-6 sm:right-6 z-50 sm:w-[420px] sm:h-[540px] max-h-[92vh] bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-slideUp">
           
           {/* Header */}
           <div className="p-4 bg-gradient-to-r from-indigo-600 to-indigo-800 text-white flex items-center justify-between shadow-md">

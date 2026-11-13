@@ -32,7 +32,7 @@ create table if not exists public.trips (
 
 -- 3. Transactions Table
 create table if not exists public.transactions (
-  id text primary key,
+  id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users(id) on delete cascade default auth.uid(),
   amount numeric(12, 2) not null,
   type text check (type in ('expense', 'income')) not null default 'expense',
@@ -45,6 +45,10 @@ create table if not exists public.transactions (
   date date not null default current_date,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
+
+-- Safe migrations for existing database columns
+alter table public.transactions add column if not exists trip_id text;
+alter table public.transactions add column if not exists trip_name text;
 
 -- 4. Budgets Table
 create table if not exists public.budgets (

@@ -44,29 +44,29 @@ export const PaymentModeBalances = () => {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 pb-3 sm:pb-4 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center space-x-2.5">
-          <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+          <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shrink-0">
             <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+          <div className="min-w-0">
+            <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white flex items-center space-x-2">
               <span>Payment Mode Balances</span>
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Live money available across all your accounts, wallets, and cash
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">
+              Live money available across your accounts, wallets & cash
             </p>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center space-x-2 self-start sm:self-auto">
+        <div className="flex items-center justify-between sm:justify-start space-x-2 w-full sm:w-auto pt-1 sm:pt-0">
           {/* Set / Edit Starting Balances Button */}
           <button
             onClick={handleOpenModal}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition active:scale-95"
+            className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition active:scale-95"
             title="Set your starting balance for each payment mode"
           >
             <Sliders className="w-3.5 h-3.5" />
@@ -74,9 +74,9 @@ export const PaymentModeBalances = () => {
           </button>
 
           {/* Total Liquid Funds Pill */}
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/60 text-xs font-bold">
-            <span className="text-slate-500 dark:text-slate-400 font-medium">Net Funds:</span>
-            <span className="text-emerald-600 dark:text-emerald-400 text-sm">
+          <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/60 text-xs font-bold shrink-0">
+            <span className="text-slate-500 dark:text-slate-400 font-medium">Net:</span>
+            <span className="text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm">
               {formatINR(totalLiquidFunds)}
             </span>
           </div>
@@ -84,7 +84,7 @@ export const PaymentModeBalances = () => {
       </div>
 
       {/* Grid of Payment Modes */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 pt-3 sm:pt-4">
         {paymentModeBalances.map((pm) => {
           const isCreditCard = pm.mode === 'Credit Card';
           const isPositive = pm.balance >= 0;
