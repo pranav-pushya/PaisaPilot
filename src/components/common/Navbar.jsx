@@ -14,14 +14,17 @@ import {
   Moon, 
   Target, 
   Compass, 
-  Menu, 
   X,
   LogIn,
   LogOut,
   User,
   Cloud,
-  List,
-  LockKeyhole
+  LockKeyhole,
+  CalendarClock,
+  HandCoins,
+  Coffee,
+  Hourglass,
+  PiggyBank
 } from 'lucide-react';
 import { 
   shiftMonthStr, 
@@ -120,7 +123,10 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
           
           {/* Logo & Brand Title */}
           <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl overflow-hidden shadow-md shadow-indigo-500/30 ring-1.5 sm:ring-2 ring-indigo-500/30 flex items-center justify-center bg-slate-950 shrink-0">
+            <button type="button" onClick={() => setIsMobileMenuOpen((open) => !open)} aria-label={isMobileMenuOpen ? 'Close PaisaPilot sidebar' : 'Open PaisaPilot sidebar'} aria-expanded={isMobileMenuOpen} className="md:hidden w-8 h-8 rounded-xl overflow-hidden shadow-md shadow-indigo-500/30 ring-2 ring-indigo-500/30 flex items-center justify-center bg-slate-950 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+              <img src="/icon-192.png" alt="PaisaPilot Rupee Jet Logo" className="w-full h-full object-cover" />
+            </button>
+            <div className="hidden md:flex w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl overflow-hidden shadow-md shadow-indigo-500/30 ring-1.5 sm:ring-2 ring-indigo-500/30 items-center justify-center bg-slate-950 shrink-0">
               <img src="/icon-192.png" alt="PaisaPilot Rupee Jet Logo" className="w-full h-full object-cover" />
             </div>
             <div className="flex flex-col">
@@ -356,28 +362,20 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
             </button>
           </div>
 
-          {/* Mobile Hamburger Button */}
-          <div className="flex md:hidden items-center space-x-1.5 shrink-0">
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 sm:p-2.5 rounded-xl text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition active:scale-95 flex items-center justify-center"
-              aria-label="Navigation Menu"
-              aria-expanded={isMobileMenuOpen}
-            >
-              {isMobileMenuOpen ? (
-                <X className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-              ) : (
-                <Menu className="w-5 h-5" />
-              )}
-            </button>
-          </div>
-
         </div>
       </div>
 
       {/* Mobile Drawer Menu */}
       {isMobileMenuOpen && (
-        <div className="md:hidden max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-t border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-4 space-y-3 shadow-xl animate-fadeIn">
+        <div className="md:hidden fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsMobileMenuOpen(false); }}>
+          <aside aria-label="PaisaPilot sidebar" className="absolute inset-y-0 left-0 flex max-h-[100dvh] w-[min(88vw,22rem)] flex-col overflow-y-auto border-r border-slate-200 bg-white px-4 py-4 shadow-2xl animate-fadeIn dark:border-slate-800 dark:bg-slate-900" onMouseDown={(event) => event.stopPropagation()}>
+          <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+            <div className="flex items-center gap-2.5">
+              <img src="/icon-192.png" alt="" className="h-9 w-9 rounded-xl" />
+              <div><p className="text-sm font-extrabold text-slate-900 dark:text-white">PaisaPilot</p><p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-500">Finance tools</p></div>
+            </div>
+            <button type="button" onClick={() => setIsMobileMenuOpen(false)} aria-label="Close sidebar" className="rounded-xl border border-slate-200 p-2 text-slate-600 dark:border-slate-700 dark:text-slate-300"><X className="h-5 w-5" /></button>
+          </div>
           {/* Primary Action: Add Expense */}
           <button
             onClick={() => {
@@ -428,77 +426,24 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
             </button>
           )}
 
-          {/* Navigation Quick Links Grid */}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => { setIsMobileMenuOpen(false); onNavigate('transactions'); }}
-              className={`flex items-center space-x-2 p-3 rounded-xl text-xs font-bold border transition active:scale-95 ${
-                activeTab === 'transactions'
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60'
-              }`}
-            >
-              <List className="w-4 h-4 shrink-0" />
-              <span className="truncate">Transactions</span>
-            </button>
-            <button
-              onClick={() => { setIsMobileMenuOpen(false); onNavigate('dashboard'); }}
-              className={`flex items-center space-x-2 p-3 rounded-xl text-xs font-bold border transition active:scale-95 ${
-                activeTab === 'dashboard'
-                  ? 'bg-slate-800 text-white border-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
-              }`}
-            >
-              <span className="truncate">Dashboard</span>
-            </button>
-            {/* Trips & Hackathons */}
-            <button
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                onToggleTripsView();
-              }}
-              className={`flex items-center space-x-2 p-3 rounded-xl text-xs font-bold border transition active:scale-95 ${
-                activeTab === 'trips'
-                  ? 'bg-violet-600 text-white border-violet-600 shadow-md shadow-violet-600/20'
-                  : 'bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800/60'
-              }`}
-            >
-              <Compass className="w-4 h-4 shrink-0" />
-              <span className="truncate">Trips & Events</span>
-              {trips && trips.length > 0 && (
-                <span className="ml-auto w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              )}
-            </button>
-
-            {/* Set Budgets */}
-            <button
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                onOpenBudgetModal();
-              }}
-              className="flex items-center space-x-2 p-3 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 transition active:scale-95"
-            >
-              <Target className="w-4 h-4 text-indigo-500 shrink-0" />
-              <span className="truncate">Set Budgets</span>
-            </button>
-          </div>
-
           <div className="border-t border-slate-100 pt-3 dark:border-slate-800">
-            <p className="mb-2 px-1 text-[10px] font-extrabold uppercase tracking-[.14em] text-slate-400">Finance tools</p>
-            <div className="grid grid-cols-2 gap-2">
+            <p className="mb-2 px-1 text-[10px] font-extrabold uppercase tracking-[.14em] text-slate-400">Your tools</p>
+            <nav aria-label="Finance tool pages" className="space-y-1">
               {[
-                ['feature-recurring', 'Recurring bills & income'],
-                ['feature-udhaar', 'Quick Udhaar ledger'],
-                ['feature-quick-logs', 'Campus Quick Logs'],
-                ['feature-impulse', 'Impulse Vault'],
-                ['feature-savings', 'Micro-Savings Jars'],
-              ].map(([view, label]) => (
-                <button key={view} onClick={() => { setIsMobileMenuOpen(false); onNavigate(view); }} className="min-h-11 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-left text-xs font-bold text-indigo-700 transition active:scale-[.98] dark:border-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-300">
-                  {label}
+                ['feature-recurring', 'Recurring bills & income', CalendarClock],
+                ['feature-udhaar', 'Quick Udhaar ledger', HandCoins],
+                ['feature-quick-logs', 'Campus Quick Logs', Coffee],
+                ['feature-impulse', 'Impulse Vault', Hourglass],
+                ['feature-savings', 'Micro-Savings Jars', PiggyBank],
+              ].map(([view, label, Icon]) => (
+                <button key={view} type="button" aria-current={activeTab === view ? 'page' : undefined} onClick={() => { setIsMobileMenuOpen(false); onNavigate(view); }} className={`flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-bold transition active:scale-[.99] ${activeTab === view ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-transparent text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 dark:text-slate-200 dark:hover:border-indigo-900 dark:hover:bg-indigo-950/50'}`}>
+                  <Icon className={`h-4 w-4 shrink-0 ${activeTab === view ? 'text-white' : 'text-indigo-500'}`} /><span>{label}</span>
                 </button>
               ))}
-            </div>
+            </nav>
           </div>
+
+          <button onClick={() => { setIsMobileMenuOpen(false); onOpenBudgetModal(); }} className="mt-3 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"><Target className="h-4 w-4 text-indigo-500" />Set Budgets</button>
 
           {/* Device app lock controls */}
           <div className="grid grid-cols-2 gap-2">
@@ -557,6 +502,7 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
               )}
             </div>
           </div>
+          </aside>
         </div>
       )}
     </header>

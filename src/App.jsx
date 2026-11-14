@@ -29,28 +29,12 @@ function DashboardContent() {
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [openAiTrigger, setOpenAiTrigger] = useState(false);
   const [selectedTripForAdd, setSelectedTripForAdd] = useState(null);
-  const [pendingFeature, setPendingFeature] = useState(null);
   const { trips, isAuthModalOpen, setIsAuthModalOpen } = useExpense();
   const { appLockEnabled, lockApp, openAppLockSettings } = useAppLock();
 
   const handleNavigate = (view) => {
-    if (view.startsWith('feature-')) {
-      setPendingFeature(view);
-      setActiveTab('dashboard');
-      return;
-    }
-    setPendingFeature(null);
     setActiveTab(view);
   };
-
-  useEffect(() => {
-    if (!pendingFeature || activeTab !== 'dashboard') return undefined;
-    const timer = window.setTimeout(() => {
-      document.getElementById(pendingFeature)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setPendingFeature(null);
-    }, 50);
-    return () => window.clearTimeout(timer);
-  }, [activeTab, pendingFeature]);
 
   // Global keyboard shortcut: Press "n" or "N" to open quick add
   useEffect(() => {
@@ -156,17 +140,7 @@ function DashboardContent() {
             {/* Proactive AI Insight & Alerts */}
             <SmartBudgetAlert onOpenAiChat={() => setOpenAiTrigger((prev) => !prev)} />
 
-            <section id="feature-recurring" className="scroll-mt-24"><RecurringBills /></section>
-
             <SurvivalMeter />
-
-            <section id="feature-udhaar" className="scroll-mt-24"><ReceivablesLedger /></section>
-
-            <section id="feature-quick-logs" className="scroll-mt-24"><CampusQuickLogs /></section>
-
-            <section id="feature-impulse" className="scroll-mt-24"><ImpulseVault /></section>
-
-            <section id="feature-savings" className="scroll-mt-24"><SavingsJars /></section>
 
             {/* Financial KPI Summary Cards */}
             <SummaryCards />
@@ -202,6 +176,12 @@ function DashboardContent() {
             <TransactionList onNavigateToTrips={() => setActiveTab('trips')} />
           </div>
         )}
+
+        {activeTab === 'feature-recurring' && <RecurringBills />}
+        {activeTab === 'feature-udhaar' && <ReceivablesLedger />}
+        {activeTab === 'feature-quick-logs' && <CampusQuickLogs />}
+        {activeTab === 'feature-impulse' && <ImpulseVault />}
+        {activeTab === 'feature-savings' && <SavingsJars />}
 
         </main>
       </div>
