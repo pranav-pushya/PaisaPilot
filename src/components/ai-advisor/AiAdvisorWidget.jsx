@@ -15,9 +15,8 @@ import {
   Minimize2 
 } from 'lucide-react';
 
-export const AiAdvisorWidget = () => {
+export const AiAdvisorWidget = ({ isOpen, onOpenChange }) => {
   const expenseContext = useExpense();
-  const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -90,7 +89,7 @@ export const AiAdvisorWidget = () => {
       {!isOpen && (
         <div className="fixed bottom-4 right-3.5 sm:bottom-6 sm:right-6 z-50 pointer-events-auto">
           <button
-            onClick={() => setIsOpen(true)}
+            onClick={() => onOpenChange(true)}
             className="group relative flex items-center space-x-2 px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-indigo-600 via-indigo-700 to-emerald-600 text-white rounded-full shadow-2xl shadow-indigo-600/50 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer ring-2 ring-white/20 dark:ring-slate-800/40"
             aria-label="Open PaisaPilot AI Co-Pilot"
           >
@@ -127,7 +126,7 @@ export const AiAdvisorWidget = () => {
 
             <div className="flex items-center space-x-1">
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={() => onOpenChange(false)}
                 className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition"
               >
                 <X className="w-4 h-4" />

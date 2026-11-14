@@ -27,7 +27,7 @@ function DashboardContent() {
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'transactions' | 'trips'
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
-  const [openAiTrigger, setOpenAiTrigger] = useState(false);
+  const [isAiChatOpen, setIsAiChatOpen] = useState(false);
   const [selectedTripForAdd, setSelectedTripForAdd] = useState(null);
   const { trips, isAuthModalOpen, setIsAuthModalOpen } = useExpense();
   const { appLockEnabled, lockApp, openAppLockSettings } = useAppLock();
@@ -138,7 +138,7 @@ function DashboardContent() {
         {activeTab === 'dashboard' && (
           <div className="space-y-5 sm:space-y-6">
             {/* Proactive AI Insight & Alerts */}
-            <SmartBudgetAlert onOpenAiChat={() => setOpenAiTrigger((prev) => !prev)} />
+            <SmartBudgetAlert onOpenAiChat={() => setIsAiChatOpen(true)} />
 
             <SurvivalMeter />
 
@@ -215,7 +215,7 @@ function DashboardContent() {
       <MobileInstallPrompt />
 
       {/* Floating AI Financial Advisor */}
-      <AiAdvisorWidget key={String(openAiTrigger)} />
+      <AiAdvisorWidget isOpen={isAiChatOpen} onOpenChange={setIsAiChatOpen} />
     </div>
   );
 }
