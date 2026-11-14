@@ -71,8 +71,19 @@ create table if not exists public.budgets (
 create table if not exists public.user_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade default auth.uid(),
   starting_balances jsonb not null default '{"UPI": 0, "Net Banking": 0, "Debit Card": 0, "Cash": 0, "Credit Card": 0}'::jsonb,
+  receivables jsonb not null default '[]'::jsonb,
+  savings_jars jsonb not null default '[]'::jsonb,
+  impulse_items jsonb not null default '[]'::jsonb,
+  quick_actions jsonb not null default '[]'::jsonb,
+  upi_id text not null default '',
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
+
+alter table public.user_profiles add column if not exists receivables jsonb not null default '[]'::jsonb;
+alter table public.user_profiles add column if not exists savings_jars jsonb not null default '[]'::jsonb;
+alter table public.user_profiles add column if not exists impulse_items jsonb not null default '[]'::jsonb;
+alter table public.user_profiles add column if not exists quick_actions jsonb not null default '[]'::jsonb;
+alter table public.user_profiles add column if not exists upi_id text not null default '';
 
 -- 6. Recurring bills and income reminders
 create table if not exists public.recurring_rules (

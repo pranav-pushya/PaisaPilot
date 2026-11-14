@@ -7,6 +7,7 @@ import { SpendingCharts } from './components/dashboard/SpendingCharts';
 import { SmartBudgetAlert } from './components/dashboard/SmartBudgetAlert';
 import { RecurringBills } from './components/dashboard/RecurringBills';
 import { SurvivalMeter } from './components/dashboard/SurvivalMeter';
+import { ReceivablesLedger } from './components/dashboard/ReceivablesLedger';
 import { TransactionList } from './components/transactions/TransactionList';
 import { AddTransactionModal } from './components/transactions/AddTransactionModal';
 import { BudgetManagerModal } from './components/budget/BudgetManagerModal';
@@ -114,6 +115,8 @@ function DashboardContent() {
             <RecurringBills />
 
             <SurvivalMeter />
+
+            <ReceivablesLedger />
 
             {/* Financial KPI Summary Cards */}
             <SummaryCards />

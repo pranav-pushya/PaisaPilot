@@ -18,10 +18,11 @@ import {
   Plus,
   Compass,
   ArrowLeftRight
+  ,Users
 } from 'lucide-react';
 
 export const AddTransactionModal = ({ isOpen, onClose, defaultTripId = null }) => {
-  const { categories, addTransaction, addCashSwap, trips } = useExpense();
+  const { categories, addTransaction, addCashSwap, addReceivables, trips } = useExpense();
 
   const [activeTab, setActiveTab] = useState('smart'); // 'smart' | 'manual' | 'swap'
   const [smartPrompt, setSmartPrompt] = useState('');
@@ -39,6 +40,9 @@ export const AddTransactionModal = ({ isOpen, onClose, defaultTripId = null }) =
   const [description, setDescription] = useState('');
   const [selectedTripId, setSelectedTripId] = useState(defaultTripId || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [splitWithFriends, setSplitWithFriends] = useState(false);
+  const [splitRows, setSplitRows] = useState([{ name: '', amount: '' }]);
+  const [splitError, setSplitError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -122,12 +126,19 @@ export const AddTransactionModal = ({ isOpen, onClose, defaultTripId = null }) =
     e.preventDefault();
     if (!amount || Number(amount) <= 0) return;
     if (type === 'transfer' && fromMode === toMode) return;
+    const splitEntries = splitRows.filter((item) => item.name.trim() && Number(item.amount) > 0);
+    const splitTotal = splitEntries.reduce((sum, item) => sum + Number(item.amount), 0);
+    if (splitWithFriends && (splitEntries.length === 0 || splitTotal > Number(amount))) {
+      setSplitError(splitEntries.length === 0 ? 'Add a friend and the amount they owe.' : 'The amounts owed can’t exceed the expense total.');
+      return;
+    }
+    setSplitError('');
 
     setIsSubmitting(true);
     try {
       const matchedTrip = trips.find((t) => t.id === selectedTripId);
 
-      await addTransaction({
+      const transactionId = await addTransaction({
         amount: parseFloat(amount),
         type,
         category_name: type === 'transfer' ? 'Transfer' : categoryName,
@@ -139,6 +150,9 @@ export const AddTransactionModal = ({ isOpen, onClose, defaultTripId = null }) =
         trip_id: type !== 'transfer' && matchedTrip ? matchedTrip.id : null,
         trip_name: type !== 'transfer' && matchedTrip ? matchedTrip.name : null,
       });
+      if (splitWithFriends && type === 'expense') {
+        await addReceivables(splitEntries, transactionId, date, description.trim() || categoryName);
+      }
 
       // Celebration burst!
       confetti({
@@ -153,6 +167,8 @@ export const AddTransactionModal = ({ isOpen, onClose, defaultTripId = null }) =
       setDescription('');
       setSmartPrompt('');
       setSelectedTripId('');
+      setSplitWithFriends(false);
+      setSplitRows([{ name: '', amount: '' }]);
       onClose();
     } catch (err) {
       console.error('Failed to add transaction:', err);
@@ -363,6 +379,25 @@ export const AddTransactionModal = ({ isOpen, onClose, defaultTripId = null }) =
                   />
                 </div>
               </div>
+
+              {type === 'expense' && (
+                <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3 dark:border-violet-900/60 dark:bg-violet-950/20">
+                  <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-violet-900 dark:text-violet-200">
+                    <input type="checkbox" checked={splitWithFriends} onChange={(event) => { setSplitWithFriends(event.target.checked); setSplitError(''); }} className="h-4 w-4 accent-violet-600" />
+                    <Users className="h-4 w-4" /> Split with friends · track who owes you
+                  </label>
+                  {splitWithFriends && <div className="mt-3 space-y-2">
+                    {splitRows.map((row, index) => <div key={index} className="grid grid-cols-[1fr,110px,32px] gap-2">
+                      <input aria-label={`Friend ${index + 1}`} value={row.name} onChange={(event) => setSplitRows((prev) => prev.map((item, i) => i === index ? { ...item, name: event.target.value } : item))} placeholder="Friend’s name" className="min-w-0 rounded-lg border border-violet-200 bg-white px-2.5 py-2 text-xs dark:border-violet-800 dark:bg-slate-900" />
+                      <input aria-label={`Amount owed by friend ${index + 1}`} type="number" min="0.01" step="0.01" value={row.amount} onChange={(event) => setSplitRows((prev) => prev.map((item, i) => i === index ? { ...item, amount: event.target.value } : item))} placeholder="₹ owed" className="min-w-0 rounded-lg border border-violet-200 bg-white px-2 py-2 text-xs dark:border-violet-800 dark:bg-slate-900" />
+                      <button type="button" aria-label="Remove friend" onClick={() => setSplitRows((prev) => prev.filter((_, i) => i !== index))} className="rounded-lg text-violet-700 hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-900"><X className="mx-auto h-4 w-4" /></button>
+                    </div>)}
+                    <button type="button" onClick={() => setSplitRows((prev) => [...prev, { name: '', amount: '' }])} className="text-xs font-bold text-violet-700 hover:underline dark:text-violet-300">+ Add another friend</button>
+                    <p className="text-[11px] text-violet-700 dark:text-violet-300">Friends owe {formatINR(splitTotal)} of this {formatINR(amount)} expense.</p>
+                    {splitError && <p role="alert" className="text-xs font-semibold text-rose-600">{splitError}</p>}
+                  </div>}
+                </div>
+              )}
 
               {/* Submit Button */}
               <div className="pt-2">

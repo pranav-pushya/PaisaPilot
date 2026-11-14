@@ -74,6 +74,13 @@ export const parseTransactionRow = (t) => {
   };
 };
 
+const DEFAULT_QUICK_ACTIONS = [
+  { id: 'chai', label: 'Chai', icon: '☕', amount: 10, category_name: 'Food & Dining', payment_mode: 'UPI' },
+  { id: 'xerox', label: 'Xerox / Print', icon: '📄', amount: 20, category_name: 'Education', payment_mode: 'Cash' },
+  { id: 'auto', label: 'Auto / Metro', icon: '🛺', amount: 30, category_name: 'Transport & Fuel', payment_mode: 'UPI' },
+  { id: 'canteen', label: 'Canteen', icon: '🍜', amount: 50, category_name: 'Food & Dining', payment_mode: 'UPI' },
+];
+
 const ExpenseContext = createContext(null);
 
 export const ExpenseProvider = ({ children }) => {
@@ -150,12 +157,7 @@ export const ExpenseProvider = ({ children }) => {
   const [receivables, setReceivables] = useState(() => readStoredJson('paisapilot_receivables', []));
   const [savingsJars, setSavingsJars] = useState(() => readStoredJson('paisapilot_savings_jars', []));
   const [impulseItems, setImpulseItems] = useState(() => readStoredJson('paisapilot_impulse_items', []));
-  const [quickActions, setQuickActions] = useState(() => readStoredJson('paisapilot_quick_actions', [
-    { id: 'chai', label: 'Chai', icon: '☕', amount: 10, category_name: 'Food & Dining', payment_mode: 'UPI' },
-    { id: 'xerox', label: 'Xerox / Print', icon: '📄', amount: 20, category_name: 'Education', payment_mode: 'Cash' },
-    { id: 'auto', label: 'Auto / Metro', icon: '🛺', amount: 30, category_name: 'Transport & Fuel', payment_mode: 'UPI' },
-    { id: 'canteen', label: 'Canteen', icon: '🍜', amount: 50, category_name: 'Food & Dining', payment_mode: 'UPI' },
-  ]));
+  const [quickActions, setQuickActions] = useState(() => readStoredJson('paisapilot_quick_actions', DEFAULT_QUICK_ACTIONS));
   const [upiId, setUpiId] = useState(() => localStorage.getItem('paisapilot_upi_id') || '');
 
   const [startingBalances, setStartingBalances] = useState(() => {
@@ -316,12 +318,7 @@ export const ExpenseProvider = ({ children }) => {
       setReceivables([]);
       setSavingsJars([]);
       setImpulseItems([]);
-      setQuickActions(readStoredJson('paisapilot_quick_actions', [
-        { id: 'chai', label: 'Chai', icon: '☕', amount: 10, category_name: 'Food & Dining', payment_mode: 'UPI' },
-        { id: 'xerox', label: 'Xerox / Print', icon: '📄', amount: 20, category_name: 'Education', payment_mode: 'Cash' },
-        { id: 'auto', label: 'Auto / Metro', icon: '🛺', amount: 30, category_name: 'Transport & Fuel', payment_mode: 'UPI' },
-        { id: 'canteen', label: 'Canteen', icon: '🍜', amount: 50, category_name: 'Food & Dining', payment_mode: 'UPI' },
-      ]));
+      setQuickActions(DEFAULT_QUICK_ACTIONS);
       setUpiId('');
       setBudgetByMonth({});
       setStartingBalances({ UPI: 0, 'Net Banking': 0, 'Debit Card': 0, Cash: 0, 'Credit Card': 0 });
@@ -440,7 +437,7 @@ export const ExpenseProvider = ({ children }) => {
         setSavingsJars(Array.isArray(profileData?.savings_jars) ? profileData.savings_jars : []);
         setImpulseItems(Array.isArray(profileData?.impulse_items) ? profileData.impulse_items : []);
         setQuickActions(Array.isArray(profileData?.quick_actions) && profileData.quick_actions.length
-          ? profileData.quick_actions : readStoredJson('paisapilot_quick_actions', []));
+          ? profileData.quick_actions : DEFAULT_QUICK_ACTIONS);
         setUpiId(profileData?.upi_id || '');
       }
 
@@ -620,6 +617,11 @@ export const ExpenseProvider = ({ children }) => {
     setCategories(DEFAULT_CATEGORIES);
     setTrips(INITIAL_TRIPS);
       setRecurringRules([]);
+    setReceivables([]);
+    setSavingsJars([]);
+    setImpulseItems([]);
+    setQuickActions(DEFAULT_QUICK_ACTIONS);
+    setUpiId('');
     setBudgetByMonth({ [currentMonthStr]: INITIAL_BUDGETS });
     setStartingBalances({
       'UPI': 0,
@@ -707,6 +709,7 @@ export const ExpenseProvider = ({ children }) => {
     const next = [...created, ...receivables];
     setReceivables(next);
     await persistProfileFields({ receivables: next });
+    return created;
   };
 
   const markReceivablePaid = async (id) => {
@@ -806,6 +809,7 @@ export const ExpenseProvider = ({ children }) => {
     if (supabase && supabaseConnected && user?.id) {
       await syncPendingTransactions(user, [tx]);
     }
+    return txId;
   };
 
   // Add Cash Swap / Balance Transfer (atomic double-entry between two payment modes)
@@ -1467,6 +1471,20 @@ export const ExpenseProvider = ({ children }) => {
     addRecurringRule,
     recordRecurringRule,
     toggleRecurringRule,
+    receivables,
+    addReceivables,
+    markReceivablePaid,
+    upiId,
+    saveUpiId,
+    savingsJars,
+    addSavingsJar,
+    updateSavingsJar,
+    impulseItems,
+    addImpulseItem,
+    dismissImpulseItem,
+    purchaseImpulseItem,
+    quickActions,
+    saveQuickActions,
     tripStats,
     addTrip,
     updateTrip,
