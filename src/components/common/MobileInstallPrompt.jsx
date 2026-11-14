@@ -65,8 +65,8 @@ export const MobileInstallPrompt = () => {
         </button>
 
         <div className="flex items-center space-x-2 pr-4">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-            <span className="font-extrabold text-xs">₹</span>
+          <div className="w-7 h-7 rounded-lg overflow-hidden shadow-sm shrink-0 ring-1 ring-indigo-500/30 bg-slate-950">
+            <img src="/icon-192.png" alt="PaisaPilot App Icon" className="w-full h-full object-cover" />
           </div>
           <div className="min-w-0">
             <h4 className="text-[11px] font-extrabold text-slate-900 dark:text-white truncate leading-tight">

@@ -6,6 +6,7 @@ import { PaymentModeBalances } from './components/dashboard/PaymentModeBalances'
 import { SpendingCharts } from './components/dashboard/SpendingCharts';
 import { SmartBudgetAlert } from './components/dashboard/SmartBudgetAlert';
 import { RecurringBills } from './components/dashboard/RecurringBills';
+import { SurvivalMeter } from './components/dashboard/SurvivalMeter';
 import { TransactionList } from './components/transactions/TransactionList';
 import { AddTransactionModal } from './components/transactions/AddTransactionModal';
 import { BudgetManagerModal } from './components/budget/BudgetManagerModal';
@@ -111,6 +112,8 @@ function DashboardContent() {
             <SmartBudgetAlert onOpenAiChat={() => setOpenAiTrigger((prev) => !prev)} />
 
             <RecurringBills />
+
+            <SurvivalMeter />
 
             {/* Financial KPI Summary Cards */}
             <SummaryCards />

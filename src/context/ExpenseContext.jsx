@@ -144,6 +144,20 @@ export const ExpenseProvider = ({ children }) => {
     }
   });
 
+  const readStoredJson = (key, fallback) => {
+    try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
+  };
+  const [receivables, setReceivables] = useState(() => readStoredJson('paisapilot_receivables', []));
+  const [savingsJars, setSavingsJars] = useState(() => readStoredJson('paisapilot_savings_jars', []));
+  const [impulseItems, setImpulseItems] = useState(() => readStoredJson('paisapilot_impulse_items', []));
+  const [quickActions, setQuickActions] = useState(() => readStoredJson('paisapilot_quick_actions', [
+    { id: 'chai', label: 'Chai', icon: '☕', amount: 10, category_name: 'Food & Dining', payment_mode: 'UPI' },
+    { id: 'xerox', label: 'Xerox / Print', icon: '📄', amount: 20, category_name: 'Education', payment_mode: 'Cash' },
+    { id: 'auto', label: 'Auto / Metro', icon: '🛺', amount: 30, category_name: 'Transport & Fuel', payment_mode: 'UPI' },
+    { id: 'canteen', label: 'Canteen', icon: '🍜', amount: 50, category_name: 'Food & Dining', payment_mode: 'UPI' },
+  ]));
+  const [upiId, setUpiId] = useState(() => localStorage.getItem('paisapilot_upi_id') || '');
+
   const [startingBalances, setStartingBalances] = useState(() => {
     const saved = localStorage.getItem('paisapilot_starting_balances');
     return saved ? JSON.parse(saved) : {
@@ -198,6 +212,38 @@ export const ExpenseProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('paisapilot_recurring_rules', JSON.stringify(recurringRules));
   }, [recurringRules]);
+
+  useEffect(() => localStorage.setItem('paisapilot_receivables', JSON.stringify(receivables)), [receivables]);
+  useEffect(() => localStorage.setItem('paisapilot_savings_jars', JSON.stringify(savingsJars)), [savingsJars]);
+  useEffect(() => localStorage.setItem('paisapilot_impulse_items', JSON.stringify(impulseItems)), [impulseItems]);
+  useEffect(() => localStorage.setItem('paisapilot_quick_actions', JSON.stringify(quickActions)), [quickActions]);
+  useEffect(() => localStorage.setItem('paisapilot_upi_id', upiId), [upiId]);
+
+  const persistProfileFields = async (fields) => {
+    if (!user?.id || !supabaseConnected) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const patch = { ...fields, updated_at: new Date().toISOString() };
+    const { data, error } = await supabase.from('user_profiles').update(patch)
+      .eq('user_id', user.id).select('user_id').maybeSingle();
+    if (error) {
+      console.warn('Could not sync profile settings:', error.message);
+      return;
+    }
+    if (!data) {
+      const { error: insertError } = await supabase.from('user_profiles').upsert({
+        user_id: user.id,
+        starting_balances: startingBalances,
+        receivables,
+        savings_jars: savingsJars,
+        impulse_items: impulseItems,
+        quick_actions: quickActions,
+        upi_id: upiId,
+        ...patch,
+      });
+      if (insertError) console.warn('Could not create profile settings:', insertError.message);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('paisapilot_pending_transaction_deletes', JSON.stringify(pendingTransactionDeletes));
@@ -267,6 +313,16 @@ export const ExpenseProvider = ({ children }) => {
       setRecurringRules((prev) => prev.filter((rule) =>
         rule._pendingCloudSync && (!rule._pendingOwnerId || rule._pendingOwnerId === activeUser.id)
       ));
+      setReceivables([]);
+      setSavingsJars([]);
+      setImpulseItems([]);
+      setQuickActions(readStoredJson('paisapilot_quick_actions', [
+        { id: 'chai', label: 'Chai', icon: '☕', amount: 10, category_name: 'Food & Dining', payment_mode: 'UPI' },
+        { id: 'xerox', label: 'Xerox / Print', icon: '📄', amount: 20, category_name: 'Education', payment_mode: 'Cash' },
+        { id: 'auto', label: 'Auto / Metro', icon: '🛺', amount: 30, category_name: 'Transport & Fuel', payment_mode: 'UPI' },
+        { id: 'canteen', label: 'Canteen', icon: '🍜', amount: 50, category_name: 'Food & Dining', payment_mode: 'UPI' },
+      ]));
+      setUpiId('');
       setBudgetByMonth({});
       setStartingBalances({ UPI: 0, 'Net Banking': 0, 'Debit Card': 0, Cash: 0, 'Credit Card': 0 });
     }
@@ -380,6 +436,12 @@ export const ExpenseProvider = ({ children }) => {
         if (profileData?.starting_balances) {
           setStartingBalances(profileData.starting_balances);
         }
+        setReceivables(Array.isArray(profileData?.receivables) ? profileData.receivables : []);
+        setSavingsJars(Array.isArray(profileData?.savings_jars) ? profileData.savings_jars : []);
+        setImpulseItems(Array.isArray(profileData?.impulse_items) ? profileData.impulse_items : []);
+        setQuickActions(Array.isArray(profileData?.quick_actions) && profileData.quick_actions.length
+          ? profileData.quick_actions : readStoredJson('paisapilot_quick_actions', []));
+        setUpiId(profileData?.upi_id || '');
       }
 
       setSupabaseConnected(true);
@@ -627,6 +689,93 @@ export const ExpenseProvider = ({ children }) => {
         ? { ...updated, _pendingCloudSync: true, _pendingOwnerId: user.id }
         : item));
     }
+  };
+
+  const addReceivables = async (items, transactionId, transactionDate, transactionDescription) => {
+    const validItems = items.filter((item) => item.name?.trim() && Number(item.amount) > 0);
+    if (!validItems.length) return;
+    const created = validItems.map((item) => ({
+      id: ensureUUID(),
+      transaction_id: transactionId || null,
+      name: item.name.trim(),
+      amount: Number(item.amount),
+      description: transactionDescription || 'Shared expense',
+      date: transactionDate || getTodayDateStr(),
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    }));
+    const next = [...created, ...receivables];
+    setReceivables(next);
+    await persistProfileFields({ receivables: next });
+  };
+
+  const markReceivablePaid = async (id) => {
+    const next = receivables.map((item) => item.id === id ? { ...item, status: 'paid', paid_at: getTodayDateStr() } : item);
+    setReceivables(next);
+    await persistProfileFields({ receivables: next });
+  };
+
+  const saveUpiId = async (value) => {
+    const next = String(value || '').trim();
+    setUpiId(next);
+    await persistProfileFields({ upi_id: next });
+  };
+
+  const addSavingsJar = async ({ name, target }) => {
+    if (!name?.trim() || Number(target) <= 0) return false;
+    const next = [{ id: ensureUUID(), name: name.trim(), target: Number(target), saved: 0, created_at: new Date().toISOString() }, ...savingsJars];
+    setSavingsJars(next);
+    await persistProfileFields({ savings_jars: next });
+    return true;
+  };
+
+  const updateSavingsJar = async (id, delta) => {
+    const amount = Number(delta);
+    if (!Number.isFinite(amount) || amount <= 0) return false;
+    const jar = savingsJars.find((item) => item.id === id);
+    if (!jar || jar.saved + amount < 0) return false;
+    const next = savingsJars.map((item) => item.id === id
+      ? { ...item, saved: Math.max(0, Math.min(item.target, item.saved + amount)) }
+      : item);
+    setSavingsJars(next);
+    await persistProfileFields({ savings_jars: next });
+    return true;
+  };
+
+  const saveQuickActions = async (next) => {
+    setQuickActions(next);
+    await persistProfileFields({ quick_actions: next });
+  };
+
+  const addImpulseItem = async ({ name, amount, cooldownHours }) => {
+    const numericAmount = Number(amount);
+    if (!name?.trim() || !Number.isFinite(numericAmount) || numericAmount <= 0) return false;
+    const now = Date.now();
+    const cooldown = Number(cooldownHours) === 48 ? 48 : 24;
+    const next = [{
+      id: ensureUUID(), name: name.trim(), amount: numericAmount, cooldown_hours: cooldown,
+      created_at: new Date(now).toISOString(), unlock_at: new Date(now + cooldown * 60 * 60 * 1000).toISOString(),
+    }, ...impulseItems];
+    setImpulseItems(next);
+    await persistProfileFields({ impulse_items: next });
+    return true;
+  };
+
+  const dismissImpulseItem = async (id) => {
+    const next = impulseItems.filter((item) => item.id !== id);
+    setImpulseItems(next);
+    await persistProfileFields({ impulse_items: next });
+  };
+
+  const purchaseImpulseItem = async (item) => {
+    if (new Date(item.unlock_at).getTime() > Date.now()) return false;
+    const txId = await addTransaction({
+      amount: item.amount, type: 'expense', category_name: 'Shopping', payment_mode: 'UPI',
+      description: `Wishlist: ${item.name}`, date: getTodayDateStr(),
+    });
+    if (!txId) return false;
+    await dismissImpulseItem(item.id);
+    return true;
   };
 
   // Add Transaction (supports regular and trip transactions)
@@ -1183,6 +1332,11 @@ export const ExpenseProvider = ({ children }) => {
     };
   }, [transactions, startingBalances]);
 
+  const reservedSavings = useMemo(
+    () => savingsJars.reduce((sum, jar) => sum + (Number(jar.saved) || 0), 0),
+    [savingsJars]
+  );
+
   // 4. Trip Stats & Progress
   const tripStats = useMemo(() => {
     return trips.map((trip) => {
@@ -1349,6 +1503,7 @@ export const ExpenseProvider = ({ children }) => {
     monthlyTransactions,
     paymentModeBalances,
     totalLiquidFunds,
+    reservedSavings,
     ...financialStats,
   };
 

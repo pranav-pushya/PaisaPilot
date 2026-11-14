@@ -1,10 +1,17 @@
 // PaisaPilot Service Worker for PWA installation & offline caching
-const CACHE_NAME = 'paisapilot-v1';
+const CACHE_NAME = 'paisapilot-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/favicon.svg',
+  '/favicon-32x32.png',
+  '/favicon-16x16.png',
+  '/apple-touch-icon.png',
+  '/pwa-icon-192.png',
+  '/pwa-icon-512.png',
+  '/icon-192.png',
+  '/icon-512.png',
   '/icons.svg'
 ];
 

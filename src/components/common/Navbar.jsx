@@ -119,7 +119,7 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
           {/* Logo & Brand Title */}
           <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl overflow-hidden shadow-md shadow-indigo-500/30 ring-1.5 sm:ring-2 ring-indigo-500/30 flex items-center justify-center bg-slate-950 shrink-0">
-              <img src="/favicon.svg" alt="PaisaPilot Rupee Jet Logo" className="w-full h-full object-cover" />
+              <img src="/icon-192.png" alt="PaisaPilot Rupee Jet Logo" className="w-full h-full object-cover" />
             </div>
             <div className="flex flex-col">
               <span className="font-extrabold text-sm sm:text-lg tracking-tight bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-800 dark:from-white dark:via-indigo-200 dark:to-slate-200 bg-clip-text text-transparent leading-none sm:leading-normal">
