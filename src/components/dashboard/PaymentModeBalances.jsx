@@ -121,7 +121,7 @@ export const PaymentModeBalances = () => {
                     ? 'text-slate-900 dark:text-white'
                     : 'text-amber-600 dark:text-amber-400'
                 }`}>
-                  {isCreditCard ? formatINR(pm.expense) : formatINR(pm.balance)}
+                  {isCreditCard ? formatINR(Math.max(0, -pm.balance)) : formatINR(pm.balance)}
                 </h4>
               </div>
 
@@ -129,11 +129,11 @@ export const PaymentModeBalances = () => {
               <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
                 <div className="flex items-center text-emerald-600 dark:text-emerald-400 font-semibold" title="Total Inflow">
                   <ArrowUpRight className="w-3 h-3 mr-0.5" />
-                  <span>{formatINR(pm.income)}</span>
+                  <span>{formatINR(pm.income + pm.transferIn)}</span>
                 </div>
                 <div className="flex items-center text-rose-500 dark:text-rose-400 font-semibold" title="Total Outflow">
                   <ArrowDownRight className="w-3 h-3 mr-0.5" />
-                  <span>{formatINR(pm.expense)}</span>
+                  <span>{formatINR(pm.expense + pm.transferOut)}</span>
                 </div>
               </div>
             </div>

@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useExpense } from '../../context/ExpenseContext';
 import { formatINR, formatFriendlyDate, PAYMENT_MODES } from '../../utils/formatters';
 import { CategoryIcon, PaymentModeIcon } from '../common/CategoryIcon';
 import { EditTransactionModal } from './EditTransactionModal';
+import { parseTransactionsCsv } from '../../utils/csv';
 import { 
   Search, 
   Trash2, 
   Download, 
+  Upload,
+  HardDriveDownload,
   ListFilter,
   AlertTriangle,
   Compass,
@@ -31,35 +34,82 @@ export const TransactionList = () => {
     deleteTransaction,
     clearAllTransactions,
     selectedMonth,
+    importTransactions,
+    createBackup,
+    restoreBackup,
   } = useExpense();
 
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [isConfirmingClearAll, setIsConfirmingClearAll] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
+  const [fileStatus, setFileStatus] = useState('');
+  const csvInputRef = useRef(null);
+  const backupInputRef = useRef(null);
 
   // Export current filtered list to CSV
   const handleExportCSV = () => {
     if (filteredTransactions.length === 0) return;
 
-    const headers = ['Date', 'Type', 'Category', 'Description', 'Event / Trip', 'Payment Mode', 'Amount (INR)'];
+    const headers = ['Date', 'Type', 'Category', 'Description', 'Event / Trip', 'Payment Mode', 'From Account', 'To Account', 'Amount (INR)'];
+    const quote = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const rows = filteredTransactions.map((t) => [
       t.date,
       t.type,
-      `"${t.category_name}"`,
-      `"${(t.description || '').replace(/"/g, '""')}"`,
-      `"${(t.trip_name || 'Regular').replace(/"/g, '""')}"`,
-      t.payment_mode,
+      quote(t.category_name),
+      quote(t.description),
+      quote(t.trip_name || 'Regular'),
+      t.type === 'transfer' ? '' : t.payment_mode,
+      t.from_mode || '',
+      t.to_mode || '',
       t.amount,
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob(['\uFEFF', [headers.join(','), ...rows.map((e) => e.join(','))].join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const encodedUri = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
     link.setAttribute('download', `PaisaPilot_Transactions_${selectedMonth}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(encodedUri);
+  };
+
+  const handleCsvImport = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const rows = parseTransactionsCsv(await file.text(), trips);
+      const result = await importTransactions(rows);
+      setFileStatus(`Imported ${result.added}; skipped ${result.skipped} duplicate${result.skipped === 1 ? '' : 's'}.`);
+    } catch (error) {
+      setFileStatus(error.message || 'Could not import this CSV file.');
+    }
+  };
+
+  const handleExportBackup = () => {
+    const blob = new Blob([JSON.stringify(createBackup(), null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `PaisaPilot_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleBackupRestore = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const result = await restoreBackup(JSON.parse(await file.text()));
+      setFileStatus(`Restored ${result.added} transaction${result.added === 1 ? '' : 's'}; skipped ${result.skipped} duplicates.`);
+    } catch (error) {
+      setFileStatus(error.message || 'Could not restore this backup.');
+    }
   };
 
   const handleClearAll = async () => {
@@ -85,7 +135,7 @@ export const TransactionList = () => {
         </div>
 
         {/* Action Buttons: Export & Delete All */}
-        <div className="flex items-center space-x-2 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {/* Delete All Button */}
           <button
             onClick={() => setIsConfirmingClearAll(true)}
@@ -106,8 +156,37 @@ export const TransactionList = () => {
             <Download className="w-3.5 h-3.5" />
             <span>Export CSV</span>
           </button>
+
+          <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvImport} />
+          <input ref={backupInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleBackupRestore} />
+
+          <button
+            onClick={() => csvInputRef.current?.click()}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/50 transition"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Import CSV</span>
+          </button>
+
+          <button
+            onClick={handleExportBackup}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition"
+          >
+            <HardDriveDownload className="w-3.5 h-3.5" />
+            <span>Backup</span>
+          </button>
+
+          <button
+            onClick={() => backupInputRef.current?.click()}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Restore</span>
+          </button>
         </div>
       </div>
+
+      {fileStatus && <p className="mt-3 text-xs text-indigo-600 dark:text-indigo-300" role="status">{fileStatus}</p>}
 
       {/* Filter and Search Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 pt-4 pb-4">
@@ -133,6 +212,7 @@ export const TransactionList = () => {
           <option value="all">All Types</option>
           <option value="expense">Expense Only</option>
           <option value="income">Income Only</option>
+          <option value="transfer">Transfers Only</option>
         </select>
 
         {/* Category Filter */}
@@ -217,6 +297,11 @@ export const TransactionList = () => {
                           <h4 className="text-xs font-bold text-slate-900 dark:text-white">
                             {tx.category_name}
                           </h4>
+                          {(tx.swap_id || tx.category_name === 'Transfer & Cash Swap') && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
+                              Swap
+                            </span>
+                          )}
                           {tx.trip_name && (
                             <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300 border border-violet-200/60 dark:border-violet-800/60 truncate max-w-[100px]">
                               {tx.trip_name}
@@ -231,9 +316,9 @@ export const TransactionList = () => {
 
                     <div className="text-right">
                       <span className={`font-black text-sm ${
-                        isExpense ? 'text-slate-900 dark:text-slate-100' : 'text-emerald-600 dark:text-emerald-400'
+                        isExpense ? 'text-slate-900 dark:text-slate-100' : tx.type === 'transfer' ? 'text-sky-600 dark:text-sky-400' : 'text-emerald-600 dark:text-emerald-400'
                       }`}>
-                        {isExpense ? '-' : '+'} {formatINR(tx.amount)}
+                        {tx.type === 'transfer' ? '↔' : isExpense ? '-' : '+'} {formatINR(tx.amount)}
                       </span>
                     </div>
                   </div>
@@ -246,7 +331,7 @@ export const TransactionList = () => {
                     <div className="flex items-center space-x-1.5 shrink-0">
                       <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                         <PaymentModeIcon mode={tx.payment_mode} className="w-3 h-3" />
-                        <span>{tx.payment_mode}</span>
+                        <span>{tx.type === 'transfer' ? `${tx.from_mode || tx.payment_mode} → ${tx.to_mode}` : tx.payment_mode}</span>
                       </span>
 
                       {/* Edit Button */}
@@ -360,16 +445,16 @@ export const TransactionList = () => {
                       <td className="py-3.5 px-3 whitespace-nowrap">
                         <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                           <PaymentModeIcon mode={tx.payment_mode} className="w-3 h-3" />
-                          <span>{tx.payment_mode}</span>
+                          <span>{tx.type === 'transfer' ? `${tx.from_mode || tx.payment_mode} → ${tx.to_mode}` : tx.payment_mode}</span>
                         </span>
                       </td>
 
                       {/* Amount */}
                       <td className="py-3.5 px-3 whitespace-nowrap text-right">
                         <span className={`font-bold text-sm ${
-                          isExpense ? 'text-slate-900 dark:text-slate-100' : 'text-emerald-600 dark:text-emerald-400'
+                          isExpense ? 'text-slate-900 dark:text-slate-100' : tx.type === 'transfer' ? 'text-sky-600 dark:text-sky-400' : 'text-emerald-600 dark:text-emerald-400'
                         }`}>
-                          {isExpense ? '-' : '+'} {formatINR(tx.amount)}
+                          {tx.type === 'transfer' ? '↔' : isExpense ? '-' : '+'} {formatINR(tx.amount)}
                         </span>
                       </td>
 

@@ -22,6 +22,8 @@ export const EditTransactionModal = ({ isOpen, transaction, onClose }) => {
   const [type, setType] = useState('expense');
   const [categoryName, setCategoryName] = useState('Food & Dining');
   const [paymentMode, setPaymentMode] = useState('UPI');
+  const [fromMode, setFromMode] = useState('UPI');
+  const [toMode, setToMode] = useState('Net Banking');
   const [date, setDate] = useState('');
   const [description, setDescription] = useState('');
   const [selectedTripId, setSelectedTripId] = useState('');
@@ -34,6 +36,8 @@ export const EditTransactionModal = ({ isOpen, transaction, onClose }) => {
       setType(transaction.type || 'expense');
       setCategoryName(transaction.category_name || 'Food & Dining');
       setPaymentMode(transaction.payment_mode || 'UPI');
+      setFromMode(transaction.from_mode || transaction.payment_mode || 'UPI');
+      setToMode(transaction.to_mode || 'Net Banking');
       setDate(transaction.date || '');
       setDescription(transaction.description || '');
       setSelectedTripId(transaction.trip_id || '');
@@ -45,6 +49,7 @@ export const EditTransactionModal = ({ isOpen, transaction, onClose }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!amount || Number(amount) <= 0) return;
+    if (type === 'transfer' && fromMode === toMode) return;
 
     setIsSubmitting(true);
     try {
@@ -53,12 +58,14 @@ export const EditTransactionModal = ({ isOpen, transaction, onClose }) => {
       await updateTransaction(transaction.id, {
         amount: parseFloat(amount),
         type,
-        category_name: categoryName,
-        payment_mode: paymentMode,
+        category_name: type === 'transfer' ? 'Transfer' : categoryName,
+        payment_mode: type === 'transfer' ? fromMode : paymentMode,
+        from_mode: type === 'transfer' ? fromMode : null,
+        to_mode: type === 'transfer' ? toMode : null,
         date,
-        description: description.trim() || categoryName,
-        trip_id: matchedTrip ? matchedTrip.id : null,
-        trip_name: matchedTrip ? matchedTrip.name : null,
+        description: description.trim() || (type === 'transfer' ? 'Account transfer' : categoryName),
+        trip_id: type !== 'transfer' && matchedTrip ? matchedTrip.id : null,
+        trip_name: type !== 'transfer' && matchedTrip ? matchedTrip.name : null,
       });
 
       onClose();
@@ -102,7 +109,7 @@ export const EditTransactionModal = ({ isOpen, transaction, onClose }) => {
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 overflow-y-auto space-y-4">
           
           {/* Expense vs Income Selector */}
-          <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200/50 dark:border-slate-700/50">
+          <div className="grid grid-cols-3 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200/50 dark:border-slate-700/50">
             <button
               type="button"
               onClick={() => setType('expense')}
@@ -124,6 +131,13 @@ export const EditTransactionModal = ({ isOpen, transaction, onClose }) => {
               }`}
             >
               Income
+            </button>
+            <button
+              type="button"
+              onClick={() => setType('transfer')}
+              className={`py-2 text-xs font-bold rounded-xl transition ${type === 'transfer' ? 'bg-sky-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'}`}
+            >
+              Transfer
             </button>
           </div>
 
@@ -149,6 +163,7 @@ export const EditTransactionModal = ({ isOpen, transaction, onClose }) => {
             </div>
           </div>
 
+          {type !== 'transfer' && <>
           {/* Category Dropdown & Add New Category button */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -207,9 +222,20 @@ export const EditTransactionModal = ({ isOpen, transaction, onClose }) => {
               Tagged expenses count toward the trip budget while continuing to deduct from your payment mode.
             </p>
           </div>
+          </>}
 
-          {/* Payment Mode Selector */}
-          <div>
+          {/* Payment Mode Selector or transfer accounts */}
+          {type === 'transfer' ? <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[['From account', fromMode, setFromMode], ['To account', toMode, setToMode]].map(([label, value, setter]) => (
+              <label key={label} className="block text-xs font-bold text-slate-600 dark:text-slate-300">
+                {label}
+                <select value={value} onChange={(e) => setter(e.target.value)} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-slate-100">
+                  {PAYMENT_MODES.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
+                </select>
+              </label>
+            ))}
+            {fromMode === toMode && <p className="sm:col-span-2 text-[11px] text-rose-600">Choose two different payment modes.</p>}
+          </div> : <div>
             <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center space-x-1 mb-1.5">
               <CreditCard className="w-3.5 h-3.5" />
               <span>Payment Mode</span>
@@ -231,7 +257,7 @@ export const EditTransactionModal = ({ isOpen, transaction, onClose }) => {
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
 
           {/* Date Picker */}
           <div>
@@ -268,7 +294,7 @@ export const EditTransactionModal = ({ isOpen, transaction, onClose }) => {
             <button
               type="button"
               onClick={onClose}
-              disabled={isSubmitting}
+              disabled={isSubmitting || (type === 'transfer' && fromMode === toMode)}
               className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
             >
               Cancel

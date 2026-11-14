@@ -34,7 +34,9 @@ import {
   Wallet,
   Store,
   Bus,
-  Wrench
+  Wrench,
+  ArrowLeftRight,
+  Repeat
 } from 'lucide-react';
 
 export const ICON_MAP = {
@@ -73,6 +75,8 @@ export const ICON_MAP = {
   Store,
   Bus,
   Wrench,
+  ArrowLeftRight,
+  Repeat,
 };
 
 export const AVAILABLE_CATEGORY_ICONS = [

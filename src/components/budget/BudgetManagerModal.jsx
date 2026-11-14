@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useExpense } from '../../context/ExpenseContext';
 import { formatINR } from '../../utils/formatters';
 import { CategoryIcon } from '../common/CategoryIcon';
@@ -10,6 +10,10 @@ export const BudgetManagerModal = ({ isOpen, onClose }) => {
   const [localBudgets, setLocalBudgets] = useState({ ...budgets });
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) setLocalBudgets({ ...budgets });
+  }, [isOpen, budgets]);
 
   if (!isOpen) return null;
 

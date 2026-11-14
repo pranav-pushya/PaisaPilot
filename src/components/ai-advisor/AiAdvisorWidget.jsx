@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useExpense } from '../../context/ExpenseContext';
-import { queryAiAdvisor, isAiConfigured, getAiProviderName } from '../../api/gemini';
+import { queryAiAdvisor } from '../../api/gemini';
 import { 
   Sparkles, 
   X, 
@@ -120,7 +120,7 @@ export const AiAdvisorWidget = () => {
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 </h4>
                 <p className="text-[11px] text-indigo-100/80">
-                  {`Connected via ${getAiProviderName()}`}
+                  AI with offline fallback
                 </p>
               </div>
             </div>

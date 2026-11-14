@@ -56,7 +56,19 @@ export const DEFAULT_CATEGORIES = [
   { id: 'cat-9', name: 'Salary & Income', icon: 'Briefcase', color: '#22c55e', type: 'income' },
   { id: 'cat-10', name: 'Investments & Returns', icon: 'TrendingUp', color: '#14b8a6', type: 'income' },
   { id: 'cat-11', name: 'Freelance & Bonus', icon: 'Laptop', color: '#84cc16', type: 'income' },
+  { id: 'cat-12', name: 'Transfer & Cash Swap', icon: 'ArrowLeftRight', color: '#6366f1', type: 'expense' },
 ];
+
+export const normalizeCategoryName = (name) => {
+  const aliases = {
+    'Shopping & Personal': 'Shopping',
+    'Freelance / Side Gig': 'Freelance & Bonus',
+    'Transfer': 'Transfer & Cash Swap',
+    'Cash Swap': 'Transfer & Cash Swap',
+    'Cash Exchange': 'Transfer & Cash Swap',
+  };
+  return aliases[name] || name;
+};
 
 /**
  * Payment modes popular in India

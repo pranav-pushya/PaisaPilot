@@ -1,10 +1,11 @@
 // Groq & Gemini AI integration for PaisaPilot AI Co-Pilot
+import { normalizeCategoryName } from '../utils/formatters';
 
 // ----------------------------------------------------
 // Key Management
 // ----------------------------------------------------
 export const getGroqApiKey = () => {
-  return import.meta.env.VITE_GROQ_API_KEY || '';
+  return '';
 };
 
 export const isGroqConfigured = () => {
@@ -13,7 +14,7 @@ export const isGroqConfigured = () => {
 };
 
 export const getGeminiApiKey = () => {
-  return import.meta.env.VITE_GEMINI_API_KEY || '';
+  return '';
 };
 
 export const isGeminiConfigured = () => {
@@ -24,9 +25,7 @@ export const isGeminiConfigured = () => {
 export const isAiConfigured = () => isGroqConfigured() || isGeminiConfigured();
 
 export const getAiProviderName = () => {
-  if (isGroqConfigured()) return 'Groq (Llama 3.3)';
-  if (isGeminiConfigured()) return 'Google Gemini';
-  return 'Offline Intelligent Engine';
+  return 'Private AI service with offline fallback';
 };
 
 // ----------------------------------------------------
@@ -34,6 +33,32 @@ export const getAiProviderName = () => {
 // e.g. "Spent 450 on Swiggy dinner with friends via UPI"
 // ----------------------------------------------------
 export const parseExpensePrompt = async (promptText) => {
+  try {
+    const response = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'parse', promptText: String(promptText || '').slice(0, 1200) }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const parsed = data?.result;
+      if (parsed && typeof parsed === 'object') {
+        return {
+          amount: Number(parsed.amount) || 0,
+          type: parsed.type === 'income' ? 'income' : 'expense',
+          category_name: normalizeCategoryName(parsed.category_name || (parsed.is_swap ? 'Transfer & Cash Swap' : 'Food & Dining')),
+          payment_mode: parsed.payment_mode || parsed.from_mode || 'UPI',
+          is_swap: Boolean(parsed.is_swap),
+          from_mode: parsed.from_mode || parsed.payment_mode || 'UPI',
+          to_mode: parsed.to_mode || 'Cash',
+          description: parsed.description || promptText,
+        };
+      }
+    }
+  } catch (error) {
+    console.warn('Private AI parser unavailable; using local parser:', error.message || error);
+  }
+
   const groqKey = getGroqApiKey();
   const geminiKey = getGeminiApiKey();
 
@@ -51,11 +76,14 @@ export const parseExpensePrompt = async (promptText) => {
           messages: [
             {
               role: 'system',
-              content: `You are an expert Indian expense extractor. Given a natural language description of an expense or income, extract the structured data as a JSON object with:
+              content: `You are an expert Indian expense extractor. Given a natural language description of an expense, income, or cash swap/transfer, extract the structured data as a JSON object with:
 - amount: number (e.g. 450)
 - type: 'expense' or 'income'
-- category_name: best match among ['Food & Dining', 'Groceries', 'Transport & Fuel', 'Rent & Utilities', 'Shopping & Personal', 'Entertainment & OTT', 'Healthcare', 'Salary & Income', 'Investments & Returns', 'Freelance / Side Gig']
+- category_name: best match among ['Food & Dining', 'Groceries', 'Transport & Fuel', 'Rent & Utilities', 'Shopping', 'Personal Care', 'Entertainment & OTT', 'Healthcare', 'Salary & Income', 'Investments & Returns', 'Freelance & Bonus', 'Transfer & Cash Swap']
 - payment_mode: best match among ['UPI', 'Credit Card', 'Debit Card', 'Cash', 'Net Banking'] (default to 'UPI' if unspecified)
+- is_swap: boolean (true if money was exchanged or transferred between modes, e.g. "gave online/UPI and got cash", "ATM withdrawal", "transferred to bank")
+- from_mode: source payment mode if is_swap is true (default 'UPI')
+- to_mode: destination payment mode if is_swap is true (default 'Cash')
 - description: clean, concise description string (max 40 characters)
 
 Respond ONLY with valid JSON. No markdown backticks or explanation.`
@@ -77,8 +105,11 @@ Respond ONLY with valid JSON. No markdown backticks or explanation.`
         return {
           amount: Number(parsed.amount) || 0,
           type: parsed.type || 'expense',
-          category_name: parsed.category_name || 'Food & Dining',
-          payment_mode: parsed.payment_mode || 'UPI',
+          category_name: normalizeCategoryName(parsed.category_name || (parsed.is_swap ? 'Transfer & Cash Swap' : 'Food & Dining')),
+          payment_mode: parsed.payment_mode || parsed.from_mode || 'UPI',
+          is_swap: Boolean(parsed.is_swap),
+          from_mode: parsed.from_mode || parsed.payment_mode || 'UPI',
+          to_mode: parsed.to_mode || 'Cash',
           description: parsed.description || promptText,
         };
       }
@@ -90,11 +121,14 @@ Respond ONLY with valid JSON. No markdown backticks or explanation.`
   // 2. Try Gemini fallback if configured
   if (isGeminiConfigured()) {
     try {
-      const systemInstruction = `You are an expert Indian expense extractor. Given a natural language description of an expense or income, extract the structured data as a JSON object with:
+      const systemInstruction = `You are an expert Indian expense extractor. Given a natural language description of an expense, income, or cash swap/transfer, extract the structured data as a JSON object with:
 - amount: number (e.g. 450)
 - type: 'expense' or 'income'
-- category_name: best match among ['Food & Dining', 'Groceries', 'Transport & Fuel', 'Rent & Utilities', 'Shopping & Personal', 'Entertainment & OTT', 'Healthcare', 'Salary & Income', 'Investments & Returns', 'Freelance / Side Gig']
+- category_name: best match among ['Food & Dining', 'Groceries', 'Transport & Fuel', 'Rent & Utilities', 'Shopping', 'Personal Care', 'Entertainment & OTT', 'Healthcare', 'Salary & Income', 'Investments & Returns', 'Freelance & Bonus', 'Transfer & Cash Swap']
 - payment_mode: best match among ['UPI', 'Credit Card', 'Debit Card', 'Cash', 'Net Banking'] (default to 'UPI' if unspecified)
+- is_swap: boolean (true if money was exchanged or transferred between modes, e.g. "gave online/UPI and got cash", "ATM withdrawal")
+- from_mode: source payment mode if is_swap is true (default 'UPI')
+- to_mode: destination payment mode if is_swap is true (default 'Cash')
 - description: clean, concise description string
 
 Respond ONLY with valid JSON. No markdown backticks or explanation.`;
@@ -117,8 +151,11 @@ Respond ONLY with valid JSON. No markdown backticks or explanation.`;
         return {
           amount: Number(parsed.amount) || 0,
           type: parsed.type || 'expense',
-          category_name: parsed.category_name || 'Food & Dining',
-          payment_mode: parsed.payment_mode || 'UPI',
+          category_name: normalizeCategoryName(parsed.category_name || (parsed.is_swap ? 'Transfer & Cash Swap' : 'Food & Dining')),
+          payment_mode: parsed.payment_mode || parsed.from_mode || 'UPI',
+          is_swap: Boolean(parsed.is_swap),
+          from_mode: parsed.from_mode || parsed.payment_mode || 'UPI',
+          to_mode: parsed.to_mode || 'Cash',
           description: parsed.description || promptText,
         };
       }
@@ -139,6 +176,34 @@ const fallbackRuleBasedParser = (text) => {
   let amount = 0;
   if (amountMatch && amountMatch[1]) {
     amount = parseFloat(amountMatch[1].replace(/,/g, ''));
+  }
+
+  // Check for Cash Swap / Transfer
+  const isSwap =
+    (clean.includes('gave') || clean.includes('paid') || clean.includes('sent') || clean.includes('diya') || clean.includes('transferred') || clean.includes('withdrew') || clean.includes('withdraw') || clean.includes('atm')) &&
+    (clean.includes('cash') || clean.includes('swap') || clean.includes('exchange') || clean.includes('other form'));
+
+  if (isSwap) {
+    let from_mode = 'UPI';
+    if (clean.includes('debit') || clean.includes('atm')) from_mode = 'Debit Card';
+    else if (clean.includes('credit')) from_mode = 'Credit Card';
+    else if (clean.includes('net banking') || clean.includes('netbanking')) from_mode = 'Net Banking';
+    else if (clean.includes('gave cash') || clean.includes('paid cash') || clean.includes('cash diya')) from_mode = 'Cash';
+
+    let to_mode = from_mode === 'Cash' ? 'UPI' : 'Cash';
+    if (clean.includes('to upi') || clean.includes('gave upi')) to_mode = 'UPI';
+    else if (clean.includes('to bank') || clean.includes('account')) to_mode = 'Net Banking';
+
+    return {
+      amount: amount || 0,
+      type: 'expense',
+      category_name: 'Transfer & Cash Swap',
+      payment_mode: from_mode,
+      from_mode,
+      to_mode,
+      is_swap: true,
+      description: text.trim().substring(0, 50),
+    };
   }
 
   // Payment mode detection
@@ -169,7 +234,7 @@ const fallbackRuleBasedParser = (text) => {
   } else if (clean.includes('medicine') || clean.includes('doctor') || clean.includes('hospital') || clean.includes('pharmacy')) {
     category_name = 'Healthcare';
   } else if (clean.includes('amazon') || clean.includes('flipkart') || clean.includes('myntra') || clean.includes('shoes') || clean.includes('clothes') || clean.includes('shopping')) {
-    category_name = 'Shopping & Personal';
+    category_name = 'Shopping';
   }
 
   // Clean description
@@ -188,6 +253,33 @@ const fallbackRuleBasedParser = (text) => {
 // 2. Query Financial AI Advisor
 // ----------------------------------------------------
 export const queryAiAdvisor = async (userQuestion, contextData) => {
+  try {
+    const advisorContext = {
+      currentMonth: contextData.currentMonth,
+      totalIncome: contextData.totalIncome,
+      totalExpense: contextData.totalExpense,
+      balance: contextData.balance,
+      savingsRate: contextData.savingsRate,
+      dailyAverage: contextData.dailyAverage,
+      topCategory: contextData.topCategory,
+      categoryBreakdown: contextData.categoryBreakdown,
+      recentTransactions: (contextData.transactions || []).slice(0, 5).map(({ date, description, category_name, amount, type, payment_mode }) => ({
+        date, description, category_name, amount, type, payment_mode,
+      })),
+    };
+    const response = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'advisor', question: String(userQuestion || '').slice(0, 1200), context: advisorContext }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (typeof data?.result === 'string' && data.result.trim()) return data.result;
+    }
+  } catch (error) {
+    console.warn('Private AI advisor unavailable; using local advisor:', error.message || error);
+  }
+
   const groqKey = getGroqApiKey();
   const geminiKey = getGeminiApiKey();
 

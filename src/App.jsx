@@ -5,6 +5,7 @@ import { SummaryCards } from './components/dashboard/SummaryCards';
 import { PaymentModeBalances } from './components/dashboard/PaymentModeBalances';
 import { SpendingCharts } from './components/dashboard/SpendingCharts';
 import { SmartBudgetAlert } from './components/dashboard/SmartBudgetAlert';
+import { RecurringBills } from './components/dashboard/RecurringBills';
 import { TransactionList } from './components/transactions/TransactionList';
 import { AddTransactionModal } from './components/transactions/AddTransactionModal';
 import { BudgetManagerModal } from './components/budget/BudgetManagerModal';
@@ -107,6 +108,8 @@ function DashboardContent() {
           <div className="space-y-5 sm:space-y-6">
             {/* Proactive AI Insight & Alerts */}
             <SmartBudgetAlert onOpenAiChat={() => setOpenAiTrigger((prev) => !prev)} />
+
+            <RecurringBills />
 
             {/* Financial KPI Summary Cards */}
             <SummaryCards />

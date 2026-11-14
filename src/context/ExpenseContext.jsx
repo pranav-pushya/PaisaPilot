@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { 
   getSupabase, 
   getSupabaseConfig, 
@@ -11,6 +11,7 @@ import {
 import { DEFAULT_CATEGORIES, PAYMENT_MODES } from '../utils/formatters';
 import { INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_TRIPS } from '../utils/initialData';
 import { getCurrentMonthStr, getTodayDateStr } from '../utils/dateUtils';
+import { advanceRecurringDate } from '../utils/recurrence';
 
 // UUID Helpers for Supabase Postgres UUID compatibility
 export const isUUID = (str) => {
@@ -33,6 +34,26 @@ export const ensureUUID = (id) => {
 export const parseTransactionRow = (t) => {
   let tripName = t.trip_name || null;
   let cleanDesc = t.description || '';
+  let swapId = t.swap_id || null;
+  let swapTargetMode = t.swap_target_mode || null;
+
+  // Extract swap_id if embedded in description: e.g. [Swap:uuid]
+  if (cleanDesc.includes('[Swap:')) {
+    const swapMatch = cleanDesc.match(/\[Swap:([a-zA-Z0-9-]+)\]\s*/);
+    if (swapMatch) {
+      swapId = swapMatch[1];
+      cleanDesc = cleanDesc.replace(swapMatch[0], '').trim();
+    }
+  }
+
+  // Extract swap direction if present: e.g. [➔ Cash] or [⬅ UPI]
+  if (cleanDesc.startsWith('[')) {
+    const dirMatch = cleanDesc.match(/^\[(➔|⬅)\s*([^\]]+)\]\s*(.*)$/);
+    if (dirMatch) {
+      swapTargetMode = dirMatch[2].trim();
+      cleanDesc = dirMatch[3].trim();
+    }
+  }
 
   if (!tripName && cleanDesc.startsWith('[')) {
     const match = cleanDesc.match(/^\[(.*?)\]\s*(.*)$/);
@@ -48,6 +69,8 @@ export const parseTransactionRow = (t) => {
     description: cleanDesc,
     trip_name: tripName,
     trip_id: t.trip_id || null,
+    swap_id: swapId,
+    swap_target_mode: swapTargetMode,
   };
 };
 
@@ -97,14 +120,28 @@ export const ExpenseProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
   });
 
-  const [budgets, setBudgets] = useState(() => {
-    const saved = localStorage.getItem('paisapilot_budgets');
-    return saved ? JSON.parse(saved) : INITIAL_BUDGETS;
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
+  const [budgetByMonth, setBudgetByMonth] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('paisapilot_budgets') || 'null');
+      if (saved && Object.values(saved).some((value) => value && typeof value === 'object')) return saved;
+      return { [currentMonthStr]: saved || INITIAL_BUDGETS };
+    } catch {
+      return { [currentMonthStr]: INITIAL_BUDGETS };
+    }
   });
 
   const [trips, setTrips] = useState(() => {
     const saved = localStorage.getItem('paisapilot_trips');
     return saved ? JSON.parse(saved) : INITIAL_TRIPS;
+  });
+
+  const [recurringRules, setRecurringRules] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('paisapilot_recurring_rules') || '[]');
+    } catch {
+      return [];
+    }
   });
 
   const [startingBalances, setStartingBalances] = useState(() => {
@@ -118,7 +155,8 @@ export const ExpenseProvider = ({ children }) => {
     };
   });
 
-  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
+  const budgetMonth = selectedMonth === 'all' ? currentMonthStr : selectedMonth;
+  const budgets = useMemo(() => budgetByMonth[budgetMonth] || {}, [budgetByMonth, budgetMonth]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterPaymentMode, setFilterPaymentMode] = useState('all');
@@ -126,6 +164,15 @@ export const ExpenseProvider = ({ children }) => {
   const [filterTrip, setFilterTrip] = useState('all'); // 'all' | 'regular' | trip_id
   const [isSyncing, setIsSyncing] = useState(false);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
+  const syncInFlightRef = useRef(false);
+  const loadedCloudUserIdRef = useRef(null);
+  const [pendingTransactionDeletes, setPendingTransactionDeletes] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('paisapilot_pending_transaction_deletes') || '[]');
+    } catch {
+      return [];
+    }
+  });
 
   // Sync to localStorage
   useEffect(() => {
@@ -133,8 +180,8 @@ export const ExpenseProvider = ({ children }) => {
   }, [transactions]);
 
   useEffect(() => {
-    localStorage.setItem('paisapilot_budgets', JSON.stringify(budgets));
-  }, [budgets]);
+    localStorage.setItem('paisapilot_budgets', JSON.stringify(budgetByMonth));
+  }, [budgetByMonth]);
 
   useEffect(() => {
     localStorage.setItem('paisapilot_categories', JSON.stringify(categories));
@@ -148,6 +195,51 @@ export const ExpenseProvider = ({ children }) => {
     localStorage.setItem('paisapilot_trips', JSON.stringify(trips));
   }, [trips]);
 
+  useEffect(() => {
+    localStorage.setItem('paisapilot_recurring_rules', JSON.stringify(recurringRules));
+  }, [recurringRules]);
+
+  useEffect(() => {
+    localStorage.setItem('paisapilot_pending_transaction_deletes', JSON.stringify(pendingTransactionDeletes));
+  }, [pendingTransactionDeletes]);
+
+  const syncPendingTransactions = async (activeUser, sourceTransactions = transactions, sourceDeletes = pendingTransactionDeletes) => {
+    const supabase = getSupabase();
+    if (!supabase || !activeUser?.id || !navigator.onLine || syncInFlightRef.current) return;
+
+    syncInFlightRef.current = true;
+    try {
+      const pending = sourceTransactions.filter(
+        (tx) => tx._pendingCloudSync && (!tx._pendingOwnerId || tx._pendingOwnerId === activeUser.id)
+      );
+      for (const tx of pending) {
+        const { _pendingCloudSync, _pendingOwnerId, ...payload } = tx;
+        const { error } = await supabase.from('transactions').upsert({
+          ...payload,
+          user_id: activeUser.id,
+          trip_id: tx.trip_id || null,
+          trip_name: tx.trip_name || null,
+        });
+        if (error) throw error;
+        setTransactions((prev) => prev.map((item) =>
+          item.id === tx.id ? { ...item, _pendingCloudSync: false, _pendingOwnerId: undefined } : item
+        ));
+      }
+
+      const deletes = sourceDeletes.filter((entry) => entry.user_id === activeUser.id);
+      for (const entry of deletes) {
+        const { error } = await supabase.from('transactions').delete()
+          .eq('id', entry.id).eq('user_id', activeUser.id);
+        if (error) throw error;
+        setPendingTransactionDeletes((prev) => prev.filter((item) => item.id !== entry.id || item.user_id !== activeUser.id));
+      }
+    } catch (err) {
+      console.warn('Some transaction changes are waiting for cloud sync:', err.message || err);
+    } finally {
+      syncInFlightRef.current = false;
+    }
+  };
+
   // Load data from Supabase (scoped to user if authenticated)
   const loadSupabaseData = async (activeUser = user) => {
     const { isConfigured } = getSupabaseConfig();
@@ -159,14 +251,52 @@ export const ExpenseProvider = ({ children }) => {
     const supabase = getSupabase();
     if (!supabase) return;
 
+    // Anonymous visitors use local storage only. Never read shared NULL-owner rows.
+    if (!activeUser?.id) {
+      setSupabaseConnected(false);
+      return;
+    }
+
+    if (loadedCloudUserIdRef.current !== activeUser.id) {
+      loadedCloudUserIdRef.current = activeUser.id;
+      setTransactions((prev) => prev.filter((tx) =>
+        tx._pendingCloudSync && (!tx._pendingOwnerId || tx._pendingOwnerId === activeUser.id)
+      ));
+      setCategories(DEFAULT_CATEGORIES);
+      setTrips([]);
+      setRecurringRules((prev) => prev.filter((rule) =>
+        rule._pendingCloudSync && (!rule._pendingOwnerId || rule._pendingOwnerId === activeUser.id)
+      ));
+      setBudgetByMonth({});
+      setStartingBalances({ UPI: 0, 'Net Banking': 0, 'Debit Card': 0, Cash: 0, 'Credit Card': 0 });
+    }
+
     try {
       setIsSyncing(true);
 
-      // 1. Transactions - query user transactions or unassigned (pre-login) transactions
-      let txQuery = supabase.from('transactions').select('*').order('date', { ascending: false });
-      if (activeUser?.id) {
-        txQuery = txQuery.or(`user_id.eq.${activeUser.id},user_id.is.null`);
+      await syncPendingTransactions(activeUser);
+
+      const storedRules = JSON.parse(localStorage.getItem('paisapilot_recurring_rules') || '[]');
+      const pendingRules = storedRules.filter((rule) =>
+        rule._pendingCloudSync && (!rule._pendingOwnerId || rule._pendingOwnerId === activeUser.id)
+      );
+      if (pendingRules.length) {
+        const ruleRows = pendingRules.map(({ _pendingCloudSync, _pendingOwnerId, ...rule }) => ({
+          ...rule,
+          user_id: activeUser.id,
+        }));
+        const { error: recurringSyncError } = await supabase.from('recurring_rules').upsert(ruleRows);
+        if (!recurringSyncError) {
+          const syncedIds = new Set(pendingRules.map((rule) => rule.id));
+          setRecurringRules((prev) => prev.map((rule) => syncedIds.has(rule.id)
+            ? { ...rule, _pendingCloudSync: false, _pendingOwnerId: activeUser.id }
+            : rule));
+        }
       }
+
+      // 1. Transactions owned by this authenticated user
+      const txQuery = supabase.from('transactions').select('*')
+        .eq('user_id', activeUser.id).order('date', { ascending: false });
       const { data: txData, error: txError } = await txQuery;
       if (!txError && txData) {
         const parsedData = txData.map(parseTransactionRow);
@@ -190,10 +320,8 @@ export const ExpenseProvider = ({ children }) => {
       }
 
       // 3. User-specific / Shared data (Trips, Budgets, Starting Balances)
-      let tripQuery = supabase.from('trips').select('*').order('created_at', { ascending: false });
-      if (activeUser?.id) {
-        tripQuery = tripQuery.or(`user_id.eq.${activeUser.id},user_id.is.null`);
-      }
+      const tripQuery = supabase.from('trips').select('*')
+        .eq('user_id', activeUser.id).order('created_at', { ascending: false });
       const { data: tripData } = await tripQuery;
       if (tripData) {
         setTrips(
@@ -210,17 +338,37 @@ export const ExpenseProvider = ({ children }) => {
         );
       }
 
-      let budgetQuery = supabase.from('budgets').select('*');
-      if (activeUser?.id) {
-        budgetQuery = budgetQuery.or(`user_id.eq.${activeUser.id},user_id.is.null`);
-      }
+      const budgetQuery = supabase.from('budgets').select('*').eq('user_id', activeUser.id);
       const { data: budgetData } = await budgetQuery;
-      if (budgetData && budgetData.length > 0) {
+      if (budgetData) {
         const bMap = {};
         budgetData.forEach((b) => {
-          bMap[b.category_name] = Number(b.monthly_limit);
+          if (!bMap[b.month]) bMap[b.month] = {};
+          bMap[b.month][b.category_name] = Number(b.monthly_limit);
         });
-        setBudgets((prev) => ({ ...prev, ...bMap }));
+        setBudgetByMonth((prev) => ({ ...prev, ...bMap }));
+      }
+
+      const { data: recurringData } = await supabase.from('recurring_rules').select('*')
+        .eq('user_id', activeUser.id).order('next_due', { ascending: true });
+      if (recurringData) {
+        const parsedRules = recurringData.map((rule) => ({
+          id: rule.id,
+          amount: Number(rule.amount),
+          type: rule.type,
+          category_name: rule.category_name,
+          payment_mode: rule.payment_mode,
+          description: rule.description || '',
+          frequency: rule.frequency,
+          next_due: rule.next_due,
+          anchor_day: Number(rule.anchor_day) || Number(String(rule.next_due).slice(-2)),
+          active: rule.active,
+        }));
+        setRecurringRules((prev) => {
+          const cloudIds = new Set(parsedRules.map((rule) => rule.id));
+          const pending = prev.filter((rule) => rule._pendingCloudSync && !cloudIds.has(rule.id));
+          return [...pending, ...parsedRules];
+        });
       }
 
       if (activeUser?.id) {
@@ -277,12 +425,34 @@ export const ExpenseProvider = ({ children }) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const retrySync = async () => {
+      try {
+        const storedTransactions = JSON.parse(localStorage.getItem('paisapilot_transactions') || '[]');
+        const storedDeletes = JSON.parse(localStorage.getItem('paisapilot_pending_transaction_deletes') || '[]');
+        await syncPendingTransactions(user, storedTransactions, storedDeletes);
+      } catch (error) {
+        console.warn('Could not retry saved cloud changes:', error.message || error);
+      }
+      await loadSupabaseData(user);
+    };
+    window.addEventListener('online', retrySync);
+    return () => window.removeEventListener('online', retrySync);
+  }, [user]);
+
+  useEffect(() => {
+    if (user?.id && supabaseConnected && navigator.onLine) {
+      syncPendingTransactions(user, transactions);
+    }
+  }, [user, supabaseConnected, transactions, pendingTransactionDeletes]);
+
   // Multi-Device Realtime Sync Subscription
   useEffect(() => {
     const supabase = getSupabase();
-    if (!supabase) return;
+    if (!supabase || !user?.id) return;
 
-    const channelName = user?.id ? `device-sync-${user.id}` : 'device-sync-public';
+    const channelName = `device-sync-${user.id}`;
     const channel = supabase
       .channel(channelName)
       .on(
@@ -343,6 +513,11 @@ export const ExpenseProvider = ({ children }) => {
           loadSupabaseData(user);
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'recurring_rules', filter: `user_id=eq.${user.id}` },
+        () => loadSupabaseData(user)
+      )
       .subscribe();
 
     return () => {
@@ -356,18 +531,6 @@ export const ExpenseProvider = ({ children }) => {
     setSession(data.session);
     setUser(data.user);
     if (data.user) {
-      // Claim unassigned transactions to this user
-      const supabase = getSupabase();
-      if (supabase) {
-        try {
-          await supabase
-            .from('transactions')
-            .update({ user_id: data.user.id })
-            .is('user_id', null);
-        } catch (e) {
-          console.warn('Could not claim unassigned transactions:', e);
-        }
-      }
       await loadSupabaseData(data.user);
     }
     return data;
@@ -389,10 +552,13 @@ export const ExpenseProvider = ({ children }) => {
     await signOutUser();
     setUser(null);
     setSession(null);
+    loadedCloudUserIdRef.current = null;
     // Reset to local sample data
     setTransactions(INITIAL_TRANSACTIONS);
+    setCategories(DEFAULT_CATEGORIES);
     setTrips(INITIAL_TRIPS);
-    setBudgets(INITIAL_BUDGETS);
+      setRecurringRules([]);
+    setBudgetByMonth({ [currentMonthStr]: INITIAL_BUDGETS });
     setStartingBalances({
       'UPI': 0,
       'Net Banking': 0,
@@ -400,6 +566,67 @@ export const ExpenseProvider = ({ children }) => {
       'Cash': 0,
       'Credit Card': 0,
     });
+  };
+
+  const addRecurringRule = async (input) => {
+    const rule = {
+      id: ensureUUID(input.id),
+      amount: Number(input.amount),
+      type: input.type === 'income' ? 'income' : 'expense',
+      category_name: input.category_name || (input.type === 'income' ? 'Freelance & Bonus' : 'Rent & Utilities'),
+      payment_mode: input.payment_mode || 'UPI',
+      description: String(input.description || '').trim(),
+      frequency: ['weekly', 'monthly', 'yearly'].includes(input.frequency) ? input.frequency : 'monthly',
+      next_due: input.next_due || getTodayDateStr(),
+      anchor_day: Number(input.next_due?.slice(-2)) || Number(getTodayDateStr().slice(-2)),
+      active: true,
+      _pendingCloudSync: true,
+      _pendingOwnerId: user?.id || null,
+    };
+    if (!Number.isFinite(rule.amount) || rule.amount <= 0) return false;
+    setRecurringRules((prev) => [rule, ...prev]);
+    const supabase = getSupabase();
+    if (supabase && supabaseConnected && user?.id) {
+      const { _pendingCloudSync, _pendingOwnerId, ...row } = rule;
+      const { error } = await supabase.from('recurring_rules').upsert({ ...row, user_id: user.id });
+      if (!error) setRecurringRules((prev) => prev.map((item) => item.id === rule.id
+        ? { ...item, _pendingCloudSync: false, _pendingOwnerId: user.id }
+        : item));
+    }
+    return true;
+  };
+
+  const recordRecurringRule = async (id) => {
+    const rule = recurringRules.find((item) => item.id === id && item.active);
+    if (!rule) return false;
+    await addTransaction({ ...rule, date: rule.next_due });
+    const anchorDay = Number(rule.anchor_day) || Number(rule.next_due.slice(-2));
+    const updated = { ...rule, anchor_day: anchorDay, next_due: advanceRecurringDate(rule.next_due, rule.frequency, anchorDay) };
+    setRecurringRules((prev) => prev.map((item) => item.id === id ? updated : item));
+    const supabase = getSupabase();
+    if (supabase && supabaseConnected && user?.id) {
+      const { error } = await supabase.from('recurring_rules').update({ next_due: updated.next_due })
+        .eq('id', id).eq('user_id', user.id);
+      if (error) setRecurringRules((prev) => prev.map((item) => item.id === id
+        ? { ...updated, _pendingCloudSync: true, _pendingOwnerId: user.id }
+        : item));
+    }
+    return true;
+  };
+
+  const toggleRecurringRule = async (id) => {
+    const existing = recurringRules.find((item) => item.id === id);
+    if (!existing) return;
+    const updated = { ...existing, active: !existing.active };
+    setRecurringRules((prev) => prev.map((item) => item.id === id ? updated : item));
+    const supabase = getSupabase();
+    if (supabase && supabaseConnected && user?.id) {
+      const { error } = await supabase.from('recurring_rules').update({ active: updated.active })
+        .eq('id', id).eq('user_id', user.id);
+      if (error) setRecurringRules((prev) => prev.map((item) => item.id === id
+        ? { ...updated, _pendingCloudSync: true, _pendingOwnerId: user.id }
+        : item));
+    }
   };
 
   // Add Transaction (supports regular and trip transactions)
@@ -414,9 +641,12 @@ export const ExpenseProvider = ({ children }) => {
       description: newTx.description || '',
       trip_id: newTx.trip_id || null,
       trip_name: newTx.trip_name || null,
+      from_mode: newTx.from_mode || null,
+      to_mode: newTx.to_mode || null,
       date: newTx.date || getTodayDateStr(),
       created_at: new Date().toISOString(),
       _pendingCloudSync: true,
+      _pendingOwnerId: user?.id || null,
     };
 
     // Update local state immediately
@@ -424,36 +654,143 @@ export const ExpenseProvider = ({ children }) => {
 
     // Push to Supabase if connected
     const supabase = getSupabase();
-    if (supabase) {
-      try {
-        const descText = tx.trip_name
-          ? `[${tx.trip_name}] ${tx.description}`.trim()
-          : tx.description;
+    if (supabase && supabaseConnected && user?.id) {
+      await syncPendingTransactions(user, [tx]);
+    }
+  };
 
-        const payload = {
-          id: tx.id,
-          amount: tx.amount,
-          type: tx.type,
-          category_name: tx.category_name,
-          payment_mode: tx.payment_mode,
-          description: descText,
-          date: tx.date,
-        };
-        if (user?.id) {
-          payload.user_id = user.id;
+  // Add Cash Swap / Balance Transfer (atomic double-entry between two payment modes)
+  const addCashSwap = async ({
+    amount,
+    fromMode = 'UPI',
+    toMode = 'Cash',
+    note = '',
+    date = getTodayDateStr(),
+  }) => {
+    const swapId = ensureUUID();
+    const cleanNote = note.trim();
+    const numAmount = Math.abs(Number(amount));
+
+    if (!numAmount || numAmount <= 0) return;
+
+    const outTxId = ensureUUID();
+    const inTxId = ensureUUID();
+
+    const outTx = {
+      id: outTxId,
+      amount: numAmount,
+      type: 'expense',
+      category_name: 'Transfer & Cash Swap',
+      payment_mode: fromMode,
+      description: `[Swap:${swapId}] [➔ ${toMode}] ${cleanNote}`.trim(),
+      date: date || getTodayDateStr(),
+      created_at: new Date().toISOString(),
+      swap_id: swapId,
+      swap_target_mode: toMode,
+      _pendingCloudSync: true,
+      _pendingOwnerId: user?.id || null,
+    };
+
+    const inTx = {
+      id: inTxId,
+      amount: numAmount,
+      type: 'income',
+      category_name: 'Transfer & Cash Swap',
+      payment_mode: toMode,
+      description: `[Swap:${swapId}] [⬅ ${fromMode}] ${cleanNote}`.trim(),
+      date: date || getTodayDateStr(),
+      created_at: new Date().toISOString(),
+      swap_id: swapId,
+      swap_target_mode: fromMode,
+      _pendingCloudSync: true,
+      _pendingOwnerId: user?.id || null,
+    };
+
+    // Update local state immediately with both legs
+    setTransactions((prev) => [outTx, inTx, ...prev]);
+
+    // Push both to Supabase if connected
+    const supabase = getSupabase();
+    if (supabase && supabaseConnected && user?.id) {
+      await syncPendingTransactions(user, [outTx, inTx]);
+    }
+  };
+
+  const importTransactions = async (rows) => {
+    const signature = (tx) => [tx.date, tx.type, Number(tx.amount), tx.category_name, tx.payment_mode, tx.description]
+      .map((part) => String(part || '').trim().toLowerCase()).join('|');
+    const seen = new Set(transactions.map(signature));
+    let added = 0;
+    for (const row of rows) {
+      const key = signature(row);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      await addTransaction(row);
+      added += 1;
+    }
+    return { added, skipped: rows.length - added };
+  };
+
+  const createBackup = () => ({
+    format: 'paisapilot-backup',
+    version: 1,
+    exported_at: new Date().toISOString(),
+    transactions,
+    categories,
+    budgets: budgetByMonth,
+    trips,
+    recurringRules,
+    addRecurringRule,
+    recordRecurringRule,
+    toggleRecurringRule,
+    starting_balances: startingBalances,
+  });
+
+  const restoreBackup = async (backup) => {
+    if (backup?.format !== 'paisapilot-backup' || backup?.version !== 1 || !Array.isArray(backup.transactions)) {
+      throw new Error('This file is not a supported PaisaPilot backup.');
+    }
+
+    if (Array.isArray(backup.categories)) {
+      const existingNames = new Set(categories.map((item) => item.name.toLowerCase()));
+      for (const category of backup.categories) {
+        if (category?.name && !existingNames.has(category.name.toLowerCase())) {
+          existingNames.add(category.name.toLowerCase());
+          await addCategory(category);
         }
-        const { error } = await supabase.from('transactions').upsert([payload]);
-        if (error) {
-          console.error('Failed to sync transaction to Supabase:', error.message || error);
-        } else {
-          setTransactions((prev) =>
-            prev.map((t) => (t.id === tx.id ? { ...t, _pendingCloudSync: false } : t))
-          );
-        }
-      } catch (err) {
-        console.error('Failed to sync transaction to Supabase:', err);
       }
     }
+
+    if (Array.isArray(backup.trips)) {
+      const existingIds = new Set(trips.map((item) => item.id));
+      for (const trip of backup.trips) {
+        if (trip?.id && trip?.name && !existingIds.has(trip.id)) {
+          existingIds.add(trip.id);
+          await addTrip(trip);
+        }
+      }
+    }
+
+    const result = await importTransactions(backup.transactions);
+    if (backup.budgets && typeof backup.budgets === 'object') {
+      setBudgetByMonth((prev) => ({ ...prev, ...backup.budgets }));
+      if (supabaseConnected && user?.id) {
+        const budgetRows = Object.entries(backup.budgets).flatMap(([month, limits]) =>
+          Object.entries(limits || {}).map(([category_name, monthly_limit]) => ({
+            user_id: user.id,
+            month,
+            category_name,
+            monthly_limit: Number(monthly_limit) || 0,
+          }))
+        );
+        if (budgetRows.length) await getSupabase().from('budgets').upsert(budgetRows);
+      }
+    }
+
+    if (backup.starting_balances && typeof backup.starting_balances === 'object') {
+      await updateStartingBalances(backup.starting_balances);
+    }
+    return result;
   };
 
   // Add Category
@@ -473,7 +810,7 @@ export const ExpenseProvider = ({ children }) => {
     });
 
     const supabase = getSupabase();
-    if (supabase && supabaseConnected) {
+    if (supabase && supabaseConnected && user?.id) {
       try {
         const payload = {
           name: category.name,
@@ -551,7 +888,7 @@ export const ExpenseProvider = ({ children }) => {
     setTrips((prev) => prev.filter((t) => t.id !== id));
 
     const supabase = getSupabase();
-    if (supabase) {
+    if (supabase && supabaseConnected && user?.id) {
       try {
         await supabase.from('trips').delete().eq('id', id);
       } catch (err) {
@@ -571,7 +908,11 @@ export const ExpenseProvider = ({ children }) => {
       description: updatedFields.description || '',
       trip_id: updatedFields.trip_id || null,
       trip_name: updatedFields.trip_name || null,
+      from_mode: updatedFields.from_mode || null,
+      to_mode: updatedFields.to_mode || null,
       date: updatedFields.date || getTodayDateStr(),
+      _pendingCloudSync: true,
+      _pendingOwnerId: user?.id || null,
     };
 
     // Update local state immediately
@@ -581,67 +922,69 @@ export const ExpenseProvider = ({ children }) => {
 
     // Sync to Supabase if connected
     const supabase = getSupabase();
-    if (supabase) {
-      try {
-        const descText = updated.trip_name
-          ? `[${updated.trip_name}] ${updated.description}`.trim()
-          : updated.description;
-
-        const payload = {
-          amount: updated.amount,
-          type: updated.type,
-          category_name: updated.category_name,
-          payment_mode: updated.payment_mode,
-          description: descText,
-          date: updated.date,
-        };
-        if (user?.id) {
-          payload.user_id = user.id;
-        }
-        const { error } = await supabase.from('transactions').update(payload).eq('id', validId);
-        if (error) {
-          console.error('Failed to update transaction on Supabase:', error.message || error);
-        }
-      } catch (err) {
-        console.error('Failed to update transaction on Supabase:', err);
-      }
+    if (supabase && supabaseConnected && user?.id) {
+      await syncPendingTransactions(user, [{ ...updated, id: validId, _pendingCloudSync: true, _pendingOwnerId: user.id }]);
     }
   };
 
-  // Delete Transaction
+  // Delete Transaction (handles single transaction or paired cash swap)
   const deleteTransaction = async (id) => {
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    const deletedTx = transactions.find((t) => t.id === id);
+    const swapId = deletedTx?.swap_id || null;
 
-    const supabase = getSupabase();
-    if (supabase) {
-      try {
-        if (isUUID(id)) {
-          const { error } = await supabase.from('transactions').delete().eq('id', id);
-          if (error) {
-            console.error('Failed to delete transaction from Supabase:', error.message || error);
+    const idsToDelete = swapId
+      ? transactions.filter((t) => t.swap_id === swapId).map((t) => t.id)
+      : [id];
+
+    setTransactions((prev) => prev.filter((t) => !idsToDelete.includes(t.id)));
+
+    for (const delId of idsToDelete) {
+      const txObj = transactions.find((t) => t.id === delId);
+      if (txObj && isUUID(delId) && user?.id && !txObj._pendingCloudSync) {
+        setPendingTransactionDeletes((prev) => [
+          ...prev.filter((entry) => entry.id !== delId || entry.user_id !== user.id),
+          { id: delId, user_id: user.id },
+        ]);
+      }
+
+      const supabase = getSupabase();
+      if (supabase && supabaseConnected && user?.id) {
+        try {
+          if (isUUID(delId)) {
+            const { error } = await supabase.from('transactions').delete().eq('id', delId).eq('user_id', user.id);
+            if (error) {
+              console.error('Failed to delete transaction from Supabase:', error.message || error);
+            } else {
+              setPendingTransactionDeletes((prev) => prev.filter((entry) => entry.id !== delId || entry.user_id !== user.id));
+            }
           }
+        } catch (err) {
+          console.error('Failed to delete from Supabase:', err);
         }
-      } catch (err) {
-        console.error('Failed to delete from Supabase:', err);
       }
     }
   };
 
   // Delete All Transactions
   const clearAllTransactions = async () => {
+    const idsToDelete = transactions.filter((tx) => isUUID(tx.id) && !tx._pendingCloudSync);
+    if (user?.id && idsToDelete.length) {
+      setPendingTransactionDeletes((prev) => [
+        ...prev.filter((entry) => entry.user_id !== user.id),
+        ...idsToDelete.map((tx) => ({ id: tx.id, user_id: user.id })),
+      ]);
+    }
     setTransactions([]);
     localStorage.removeItem('paisapilot_transactions');
 
     const supabase = getSupabase();
-    if (supabase) {
+    if (supabase && supabaseConnected && user?.id && navigator.onLine) {
       try {
-        let query = supabase.from('transactions').delete();
-        if (user?.id) {
-          query = query.or(`user_id.eq.${user.id},user_id.is.null`);
-        } else {
-          query = query.neq('id', '00000000-0000-0000-0000-000000000000');
+        for (const tx of idsToDelete) {
+          const { error } = await supabase.from('transactions').delete().eq('id', tx.id).eq('user_id', user.id);
+          if (error) throw error;
         }
-        await query;
+        setPendingTransactionDeletes((prev) => prev.filter((entry) => entry.user_id !== user.id));
       } catch (err) {
         console.error('Failed to clear transactions from Supabase:', err);
       }
@@ -650,9 +993,10 @@ export const ExpenseProvider = ({ children }) => {
 
   // Update Budget limit with multi-device sync
   const setCategoryBudget = async (categoryName, limit) => {
-    setBudgets((prev) => ({
+    const month = selectedMonth === 'all' ? currentMonthStr : selectedMonth;
+    setBudgetByMonth((prev) => ({
       ...prev,
-      [categoryName]: Number(limit),
+      [month]: { ...(prev[month] || {}), [categoryName]: Number(limit) },
     }));
 
     const supabase = getSupabase();
@@ -663,7 +1007,7 @@ export const ExpenseProvider = ({ children }) => {
             user_id: user.id,
             category_name: categoryName,
             monthly_limit: Number(limit),
-            month: selectedMonth || getCurrentMonthStr(),
+            month,
           },
         ]);
       } catch (err) {
@@ -695,7 +1039,7 @@ export const ExpenseProvider = ({ children }) => {
   // Clear or reset demo data
   const resetToSampleData = () => {
     setTransactions(INITIAL_TRANSACTIONS);
-    setBudgets(INITIAL_BUDGETS);
+    setBudgetByMonth({ [currentMonthStr]: INITIAL_BUDGETS });
     setCategories(DEFAULT_CATEGORIES);
     setTrips(INITIAL_TRIPS);
     setStartingBalances({
@@ -728,11 +1072,23 @@ export const ExpenseProvider = ({ children }) => {
         searchQuery === '' ||
         (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
         t.category_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (t.trip_name && t.trip_name.toLowerCase().includes(searchQuery.toLowerCase()));
+        (t.trip_name && t.trip_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (t.swap_target_mode && t.swap_target_mode.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchesCat = filterCategory === 'all' || t.category_name === filterCategory;
-      const matchesMode = filterPaymentMode === 'all' || t.payment_mode === filterPaymentMode;
-      const matchesType = filterType === 'all' || t.type === filterType;
+      const matchesMode = filterPaymentMode === 'all' || t.payment_mode === filterPaymentMode ||
+        (t.type === 'transfer' && (t.from_mode === filterPaymentMode || t.to_mode === filterPaymentMode));
+      const isTransfer = t.category_name === 'Transfer & Cash Swap' || Boolean(t.swap_id);
+      const matchesType =
+        filterType === 'all'
+          ? true
+          : filterType === 'transfer'
+          ? isTransfer
+          : filterType === 'expense'
+          ? t.type === 'expense' && !isTransfer
+          : filterType === 'income'
+          ? t.type === 'income' && !isTransfer
+          : t.type === filterType;
 
       const matchesTrip =
         filterTrip === 'all'
@@ -754,6 +1110,8 @@ export const ExpenseProvider = ({ children }) => {
         mode,
         income: 0,
         expense: 0,
+        transferIn: 0,
+        transferOut: 0,
         balance: startAmt,
         startingBalance: startAmt,
         count: 0,
@@ -768,17 +1126,35 @@ export const ExpenseProvider = ({ children }) => {
           mode,
           income: 0,
           expense: 0,
+          transferIn: 0,
+          transferOut: 0,
           balance: startAmt,
           startingBalance: startAmt,
           count: 0,
         };
       }
       const amt = Number(t.amount) || 0;
-      map[mode].count += 1;
-      if (t.type === 'income') {
+      if (t.type === 'transfer') {
+        const from = t.from_mode || t.payment_mode || 'UPI';
+        const to = t.to_mode || 'Net Banking';
+        [from, to].forEach((accountMode) => {
+          if (!map[accountMode]) {
+            const startAmt = Number(startingBalances[accountMode]) || 0;
+            map[accountMode] = { mode: accountMode, income: 0, expense: 0, transferIn: 0, transferOut: 0, balance: startAmt, startingBalance: startAmt, count: 0 };
+          }
+        });
+        map[from].count += 1;
+        map[to].count += 1;
+        map[from].transferOut += amt;
+        map[to].transferIn += amt;
+        map[from].balance -= amt;
+        map[to].balance += amt;
+      } else if (t.type === 'income') {
+        map[mode].count += 1;
         map[mode].income += amt;
         map[mode].balance += amt;
       } else {
+        map[mode].count += 1;
         map[mode].expense += amt;
         map[mode].balance -= amt;
       }
@@ -832,10 +1208,14 @@ export const ExpenseProvider = ({ children }) => {
     const modeMap = {};
 
     monthlyTransactions.forEach((t) => {
+      // Exclude transfers & cash swaps from income and expense metrics so budgets remain 100% accurate
+      const isTransfer = t.category_name === 'Transfer & Cash Swap' || Boolean(t.swap_id);
+      if (isTransfer) return;
+
       const amt = Number(t.amount) || 0;
       if (t.type === 'income') {
         income += amt;
-      } else {
+      } else if (t.type === 'expense') {
         expense += amt;
 
         // Group by category
@@ -941,6 +1321,10 @@ export const ExpenseProvider = ({ children }) => {
     filterTrip,
     setFilterTrip,
     addTransaction,
+    addCashSwap,
+    importTransactions,
+    createBackup,
+    restoreBackup,
     updateTransaction,
     addCategory,
     deleteTransaction,
