@@ -16,7 +16,7 @@ import {
   Pencil
 } from 'lucide-react';
 
-export const TransactionList = () => {
+export const TransactionList = ({ onNavigateToTrips }) => {
   const {
     filteredTransactions,
     searchQuery,
@@ -123,14 +123,28 @@ export const TransactionList = () => {
       {/* Header and Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 sm:pb-5 border-b border-slate-100 dark:border-slate-800">
         <div>
-          <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center space-x-2">
-            <span>Transaction Ledger</span>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-              {filteredTransactions.length}
-            </span>
-          </h3>
+          <div className="flex items-center space-x-2">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+              <span>{filterTrip === 'regular' ? 'Personal & Daily Ledger' : 'Transaction Ledger'}</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                {filteredTransactions.length}
+              </span>
+            </h3>
+            {filterTrip === 'regular' && onNavigateToTrips && (
+              <button
+                onClick={onNavigateToTrips}
+                className="hidden sm:inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200/60 dark:border-violet-800/60 hover:bg-violet-100 dark:hover:bg-violet-900/60 transition active:scale-95"
+                title="View dedicated Trips & Hackathons Ledger"
+              >
+                <Compass className="w-3 h-3 text-violet-500" />
+                <span>Trips Ledger &rarr;</span>
+              </button>
+            )}
+          </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            History of expenses and income for this period
+            {filterTrip === 'regular' 
+              ? 'Regular daily living expenses (trip & hackathon expenses are kept in their dedicated ledger)' 
+              : 'History of expenses and income for this period'}
           </p>
         </div>
 
@@ -249,8 +263,8 @@ export const TransactionList = () => {
           onChange={(e) => setFilterTrip(e.target.value)}
           className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value="all">All Spends (Events + Regular)</option>
-          <option value="regular">Regular Spends Only</option>
+          <option value="regular">Regular Living Spends Only</option>
+          <option value="all">All Spends (Regular + Events)</option>
           {trips.map((t) => (
             <option key={t.id} value={t.id}>
               {t.type === 'hackathon' ? '💻' : '✈️'} {t.name}

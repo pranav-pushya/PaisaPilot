@@ -161,7 +161,7 @@ export const ExpenseProvider = ({ children }) => {
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterPaymentMode, setFilterPaymentMode] = useState('all');
   const [filterType, setFilterType] = useState('all');
-  const [filterTrip, setFilterTrip] = useState('all'); // 'all' | 'regular' | trip_id
+  const [filterTrip, setFilterTrip] = useState('regular'); // 'regular' (default) | 'all' | trip_id
   const [isSyncing, setIsSyncing] = useState(false);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
   const syncInFlightRef = useRef(false);

@@ -13,6 +13,7 @@ import { AuthModal } from './components/auth/AuthModal';
 import { MobileInstallPrompt } from './components/common/MobileInstallPrompt';
 import { AiAdvisorWidget } from './components/ai-advisor/AiAdvisorWidget';
 import { TripsSection } from './components/trips/TripsSection';
+import { TripTransactionLedger } from './components/trips/TripTransactionLedger';
 import { LayoutDashboard, Compass } from 'lucide-react';
 
 function DashboardContent() {
@@ -120,8 +121,8 @@ function DashboardContent() {
             {/* Visual Charts & Payment Breakdown */}
             <SpendingCharts onOpenBudgetModal={() => setIsBudgetModalOpen(true)} />
 
-            {/* Searchable Transaction Ledger */}
-            <TransactionList />
+            {/* Regular Personal Transaction Ledger */}
+            <TransactionList onNavigateToTrips={() => setActiveTab('trips')} />
           </div>
         )}
 
@@ -134,8 +135,8 @@ function DashboardContent() {
             {/* Dedicated Trips Section */}
             <TripsSection onOpenAddExpenseForTrip={handleOpenAddForTrip} />
 
-            {/* Transaction Ledger */}
-            <TransactionList />
+            {/* Dedicated Trips & Hackathons Transaction Ledger */}
+            <TripTransactionLedger onOpenAddExpenseForTrip={handleOpenAddForTrip} />
           </div>
         )}
 
