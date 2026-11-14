@@ -331,7 +331,15 @@ export const TransactionList = () => {
                     <div className="flex items-center space-x-1.5 shrink-0">
                       <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                         <PaymentModeIcon mode={tx.payment_mode} className="w-3 h-3" />
-                        <span>{tx.type === 'transfer' ? `${tx.from_mode || tx.payment_mode} → ${tx.to_mode}` : tx.payment_mode}</span>
+                        <span>
+                          {tx.swap_target_mode
+                            ? tx.type === 'expense'
+                              ? `${tx.payment_mode} ➔ ${tx.swap_target_mode}`
+                              : `${tx.payment_mode} ⬅ ${tx.swap_target_mode}`
+                            : tx.type === 'transfer'
+                            ? `${tx.from_mode || tx.payment_mode} → ${tx.to_mode}`
+                            : tx.payment_mode}
+                        </span>
                       </span>
 
                       {/* Edit Button */}
@@ -421,6 +429,11 @@ export const TransactionList = () => {
                           <span className="font-semibold text-slate-800 dark:text-slate-200">
                             {tx.category_name}
                           </span>
+                          {(tx.swap_id || tx.category_name === 'Transfer & Cash Swap') && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
+                              Swap
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -445,7 +458,15 @@ export const TransactionList = () => {
                       <td className="py-3.5 px-3 whitespace-nowrap">
                         <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                           <PaymentModeIcon mode={tx.payment_mode} className="w-3 h-3" />
-                          <span>{tx.type === 'transfer' ? `${tx.from_mode || tx.payment_mode} → ${tx.to_mode}` : tx.payment_mode}</span>
+                          <span>
+                            {tx.swap_target_mode
+                              ? tx.type === 'expense'
+                                ? `${tx.payment_mode} ➔ ${tx.swap_target_mode}`
+                                : `${tx.payment_mode} ⬅ ${tx.swap_target_mode}`
+                              : tx.type === 'transfer'
+                              ? `${tx.from_mode || tx.payment_mode} → ${tx.to_mode}`
+                              : tx.payment_mode}
+                          </span>
                         </span>
                       </td>
 

@@ -740,9 +740,6 @@ export const ExpenseProvider = ({ children }) => {
     budgets: budgetByMonth,
     trips,
     recurringRules,
-    addRecurringRule,
-    recordRecurringRule,
-    toggleRecurringRule,
     starting_balances: startingBalances,
   });
 
@@ -767,6 +764,16 @@ export const ExpenseProvider = ({ children }) => {
         if (trip?.id && trip?.name && !existingIds.has(trip.id)) {
           existingIds.add(trip.id);
           await addTrip(trip);
+        }
+      }
+    }
+
+    if (Array.isArray(backup.recurringRules)) {
+      const existingIds = new Set(recurringRules.map((rule) => rule.id));
+      for (const rule of backup.recurringRules) {
+        if (rule?.id && rule?.next_due && !existingIds.has(rule.id)) {
+          existingIds.add(rule.id);
+          await addRecurringRule(rule);
         }
       }
     }
@@ -1302,6 +1309,10 @@ export const ExpenseProvider = ({ children }) => {
     categories,
     budgets,
     trips,
+    recurringRules,
+    addRecurringRule,
+    recordRecurringRule,
+    toggleRecurringRule,
     tripStats,
     addTrip,
     updateTrip,
