@@ -377,7 +377,7 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
 
       {/* Mobile Drawer Menu */}
       {isMobileMenuOpen && (
-        <div className="md:hidden border-t border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-4 space-y-3 shadow-xl animate-fadeIn">
+        <div className="md:hidden max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-t border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-4 space-y-3 shadow-xl animate-fadeIn">
           {/* Primary Action: Add Expense */}
           <button
             onClick={() => {
@@ -481,6 +481,23 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
               <Target className="w-4 h-4 text-indigo-500 shrink-0" />
               <span className="truncate">Set Budgets</span>
             </button>
+          </div>
+
+          <div className="border-t border-slate-100 pt-3 dark:border-slate-800">
+            <p className="mb-2 px-1 text-[10px] font-extrabold uppercase tracking-[.14em] text-slate-400">Finance tools</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ['feature-recurring', 'Recurring bills & income'],
+                ['feature-udhaar', 'Quick Udhaar ledger'],
+                ['feature-quick-logs', 'Campus Quick Logs'],
+                ['feature-impulse', 'Impulse Vault'],
+                ['feature-savings', 'Micro-Savings Jars'],
+              ].map(([view, label]) => (
+                <button key={view} onClick={() => { setIsMobileMenuOpen(false); onNavigate(view); }} className="min-h-11 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-left text-xs font-bold text-indigo-700 transition active:scale-[.98] dark:border-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-300">
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Device app lock controls */}

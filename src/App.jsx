@@ -29,8 +29,28 @@ function DashboardContent() {
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [openAiTrigger, setOpenAiTrigger] = useState(false);
   const [selectedTripForAdd, setSelectedTripForAdd] = useState(null);
+  const [pendingFeature, setPendingFeature] = useState(null);
   const { trips, isAuthModalOpen, setIsAuthModalOpen } = useExpense();
   const { appLockEnabled, lockApp, openAppLockSettings } = useAppLock();
+
+  const handleNavigate = (view) => {
+    if (view.startsWith('feature-')) {
+      setPendingFeature(view);
+      setActiveTab('dashboard');
+      return;
+    }
+    setPendingFeature(null);
+    setActiveTab(view);
+  };
+
+  useEffect(() => {
+    if (!pendingFeature || activeTab !== 'dashboard') return undefined;
+    const timer = window.setTimeout(() => {
+      document.getElementById(pendingFeature)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setPendingFeature(null);
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, pendingFeature]);
 
   // Global keyboard shortcut: Press "n" or "N" to open quick add
   useEffect(() => {
@@ -68,7 +88,7 @@ function DashboardContent() {
         onOpenBudgetModal={() => setIsBudgetModalOpen(true)}
         activeTab={activeTab}
         onToggleTripsView={() => setActiveTab((prev) => (prev === 'trips' ? 'dashboard' : 'trips'))}
-        onNavigate={setActiveTab}
+        onNavigate={handleNavigate}
         appLockEnabled={appLockEnabled}
         onLockApp={lockApp}
         onOpenAppLockSettings={openAppLockSettings}
@@ -76,7 +96,7 @@ function DashboardContent() {
 
       {/* Main Content Dashboard */}
       <div className="mx-auto flex w-full max-w-screen-2xl flex-1 gap-4 px-3 sm:px-6 lg:px-8">
-        <AppSidebar activeView={activeTab} onNavigate={setActiveTab} />
+        <AppSidebar activeView={activeTab} onNavigate={handleNavigate} />
         <main className="min-w-0 flex-1 py-4 sm:py-8 space-y-4 sm:space-y-6">
         
         {/* View Switcher Tabs (iOS Segmented Style on Mobile) */}
@@ -136,17 +156,17 @@ function DashboardContent() {
             {/* Proactive AI Insight & Alerts */}
             <SmartBudgetAlert onOpenAiChat={() => setOpenAiTrigger((prev) => !prev)} />
 
-            <RecurringBills />
+            <section id="feature-recurring" className="scroll-mt-24"><RecurringBills /></section>
 
             <SurvivalMeter />
 
-            <ReceivablesLedger />
+            <section id="feature-udhaar" className="scroll-mt-24"><ReceivablesLedger /></section>
 
-            <CampusQuickLogs />
+            <section id="feature-quick-logs" className="scroll-mt-24"><CampusQuickLogs /></section>
 
-            <ImpulseVault />
+            <section id="feature-impulse" className="scroll-mt-24"><ImpulseVault /></section>
 
-            <SavingsJars />
+            <section id="feature-savings" className="scroll-mt-24"><SavingsJars /></section>
 
             {/* Financial KPI Summary Cards */}
             <SummaryCards />

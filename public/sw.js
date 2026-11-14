@@ -1,7 +1,6 @@
 // PaisaPilot Service Worker for PWA installation & offline caching
-const CACHE_NAME = 'paisapilot-v2';
+const CACHE_NAME = 'paisapilot-v3';
 const STATIC_ASSETS = [
-  '/',
   '/index.html',
   '/manifest.json',
   '/favicon.svg',
@@ -41,6 +40,22 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
   if (url.origin !== self.location.origin) return;
+
+  // Always prefer the deployed app shell so installed mobile apps don't stay on old UI.
+  if (event.request.mode === 'navigate' || url.pathname === '/index.html') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
+          }
+          return response;
+        })
+        .catch(async () => (await caches.match('/index.html')) || Response.error())
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
