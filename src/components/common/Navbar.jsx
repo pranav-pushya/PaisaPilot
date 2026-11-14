@@ -14,6 +14,7 @@ import {
   Moon, 
   Target, 
   Compass, 
+  Menu,
   X,
   LogIn,
   LogOut,
@@ -117,6 +118,7 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
   );
 
   return (
+    <>
     <header className="sticky top-0 z-30 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 transition-colors">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-20 gap-1.5 sm:gap-4">
@@ -362,8 +364,22 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
             </button>
           </div>
 
+          {/* Keep the familiar hamburger alongside the tappable PaisaPilot logo. */}
+          <div className="flex md:hidden items-center space-x-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen((open) => !open)}
+              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition active:scale-95 flex items-center justify-center"
+              aria-label={isMobileMenuOpen ? 'Close navigation sidebar' : 'Open navigation sidebar'}
+              aria-expanded={isMobileMenuOpen}
+            >
+              {isMobileMenuOpen ? <X className="h-5 w-5 text-indigo-600 dark:text-indigo-400" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
+
         </div>
       </div>
+    </header>
 
       {/* Mobile Drawer Menu */}
       {isMobileMenuOpen && (
@@ -505,6 +521,6 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
           </aside>
         </div>
       )}
-    </header>
+    </>
   );
 };
