@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Check, MessageCircle, WalletCards } from 'lucide-react';
 import { useExpense } from '../../context/ExpenseContext';
 import { formatINR } from '../../utils/formatters';
+import { buildWhatsAppReminderUrl } from '../../utils/udhaar';
 
 export function ReceivablesLedger() {
   const { receivables, markReceivablePaid, upiId, saveUpiId } = useExpense();
@@ -9,13 +10,6 @@ export function ReceivablesLedger() {
   const [editingUpi, setEditingUpi] = useState(false);
   const pending = useMemo(() => receivables.filter((item) => item.status === 'pending'), [receivables]);
   const pendingTotal = pending.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-
-  const reminderUrl = (item) => {
-    const when = new Date(`${item.date}T12:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-    const payTo = upiId ? ` Send it to ${upiId} on UPI.` : ' You can send it on UPI when convenient.';
-    const text = `Hey ${item.name}! ₹${Number(item.amount).toLocaleString('en-IN')} is pending for ${item.description} from ${when}.${payTo} Thanks!`;
-    return `https://wa.me/?text=${encodeURIComponent(text)}`;
-  };
 
   const saveUpi = async (event) => {
     event.preventDefault();
@@ -40,7 +34,7 @@ export function ReceivablesLedger() {
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
           {pending.map((item) => <div key={item.id} className="flex flex-wrap items-center gap-3 py-3">
             <div className="min-w-0 flex-1"><p className="font-bold text-slate-800 dark:text-slate-100">{item.name} <span className="font-normal text-slate-500">owes</span> {formatINR(item.amount)}</p><p className="truncate text-xs text-slate-500 dark:text-slate-400">{item.description} · {item.date}</p></div>
-            <a href={reminderUrl(item)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-2.5 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</a>
+            <a href={buildWhatsAppReminderUrl(item, upiId)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-2.5 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</a>
             <button type="button" onClick={() => markReceivablePaid(item.id)} className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"><Check className="h-3.5 w-3.5" /> Paid</button>
           </div>)}
         </div>

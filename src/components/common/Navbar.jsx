@@ -19,7 +19,8 @@ import {
   LogIn,
   LogOut,
   User,
-  Cloud
+  Cloud,
+  List
 } from 'lucide-react';
 import { 
   shiftMonthStr, 
@@ -29,7 +30,7 @@ import {
   MONTH_SHORT_NAMES 
 } from '../../utils/dateUtils';
 
-export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleTripsView }) => {
+export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleTripsView, onNavigate = () => {} }) => {
   const { 
     theme, 
     toggleTheme, 
@@ -414,6 +415,27 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
 
           {/* Navigation Quick Links Grid */}
           <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => { setIsMobileMenuOpen(false); onNavigate('transactions'); }}
+              className={`flex items-center space-x-2 p-3 rounded-xl text-xs font-bold border transition active:scale-95 ${
+                activeTab === 'transactions'
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60'
+              }`}
+            >
+              <List className="w-4 h-4 shrink-0" />
+              <span className="truncate">Transactions</span>
+            </button>
+            <button
+              onClick={() => { setIsMobileMenuOpen(false); onNavigate('dashboard'); }}
+              className={`flex items-center space-x-2 p-3 rounded-xl text-xs font-bold border transition active:scale-95 ${
+                activeTab === 'dashboard'
+                  ? 'bg-slate-800 text-white border-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              <span className="truncate">Dashboard</span>
+            </button>
             {/* Trips & Hackathons */}
             <button
               onClick={() => {

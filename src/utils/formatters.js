@@ -53,6 +53,7 @@ export const DEFAULT_CATEGORIES = [
   { id: 'cat-6', name: 'Entertainment & OTT', icon: 'Film', color: '#06b6d4', type: 'expense' },
   { id: 'cat-7', name: 'Healthcare', icon: 'HeartPulse', color: '#ef4444', type: 'expense' },
   { id: 'cat-8', name: 'Personal Care', icon: 'Smile', color: '#f59e0b', type: 'expense' },
+  { id: 'cat-13', name: 'Education & Supplies', icon: 'BookOpen', color: '#8b5cf6', type: 'expense' },
   { id: 'cat-9', name: 'Salary & Income', icon: 'Briefcase', color: '#22c55e', type: 'income' },
   { id: 'cat-10', name: 'Investments & Returns', icon: 'TrendingUp', color: '#14b8a6', type: 'income' },
   { id: 'cat-11', name: 'Freelance & Bonus', icon: 'Laptop', color: '#84cc16', type: 'income' },

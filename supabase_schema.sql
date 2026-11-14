@@ -187,6 +187,7 @@ insert into public.categories (name, icon, color, type) values
   ('Shopping', 'ShoppingBag', '#ec4899', 'expense'),
   ('Entertainment & OTT', 'Film', '#06b6d4', 'expense'),
   ('Healthcare', 'HeartPulse', '#ef4444', 'expense'),
+  ('Education & Supplies', 'BookOpen', '#8b5cf6', 'expense'),
   ('Salary & Income', 'Briefcase', '#22c55e', 'income'),
   ('Investments & Returns', 'TrendingUp', '#14b8a6', 'income'),
   ('Freelance & Bonus', 'Laptop', '#84cc16', 'income')

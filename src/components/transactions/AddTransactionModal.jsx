@@ -3,6 +3,7 @@ import { useExpense } from '../../context/ExpenseContext';
 import { PAYMENT_MODES, formatINR } from '../../utils/formatters';
 import { getTodayDateStr } from '../../utils/dateUtils';
 import { parseExpensePrompt } from '../../api/gemini';
+import { validateUdhaarSplits } from '../../utils/udhaar';
 import { CategoryIcon, PaymentModeIcon } from '../common/CategoryIcon';
 import { AddCategoryModal } from '../common/AddCategoryModal';
 import confetti from 'canvas-confetti';
@@ -17,8 +18,8 @@ import {
   CreditCard,
   Plus,
   Compass,
-  ArrowLeftRight
-  ,Users
+  ArrowLeftRight,
+  Users,
 } from 'lucide-react';
 
 export const AddTransactionModal = ({ isOpen, onClose, defaultTripId = null }) => {
@@ -126,10 +127,10 @@ export const AddTransactionModal = ({ isOpen, onClose, defaultTripId = null }) =
     e.preventDefault();
     if (!amount || Number(amount) <= 0) return;
     if (type === 'transfer' && fromMode === toMode) return;
-    const splitEntries = splitRows.filter((item) => item.name.trim() && Number(item.amount) > 0);
-    const splitTotal = splitEntries.reduce((sum, item) => sum + Number(item.amount), 0);
-    if (splitWithFriends && (splitEntries.length === 0 || splitTotal > Number(amount))) {
-      setSplitError(splitEntries.length === 0 ? 'Add a friend and the amount they owe.' : 'The amounts owed can’t exceed the expense total.');
+    const splitResult = validateUdhaarSplits(splitRows, amount);
+    const splitEntries = splitResult.entries;
+    if (type === 'expense' && splitWithFriends && !splitResult.valid) {
+      setSplitError(splitResult.reason);
       return;
     }
     setSplitError('');
@@ -393,7 +394,7 @@ export const AddTransactionModal = ({ isOpen, onClose, defaultTripId = null }) =
                       <button type="button" aria-label="Remove friend" onClick={() => setSplitRows((prev) => prev.filter((_, i) => i !== index))} className="rounded-lg text-violet-700 hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-900"><X className="mx-auto h-4 w-4" /></button>
                     </div>)}
                     <button type="button" onClick={() => setSplitRows((prev) => [...prev, { name: '', amount: '' }])} className="text-xs font-bold text-violet-700 hover:underline dark:text-violet-300">+ Add another friend</button>
-                    <p className="text-[11px] text-violet-700 dark:text-violet-300">Friends owe {formatINR(splitTotal)} of this {formatINR(amount)} expense.</p>
+                    <p className="text-[11px] text-violet-700 dark:text-violet-300">Friends owe {formatINR(splitResult.total)} of this {formatINR(amount)} expense.</p>
                     {splitError && <p role="alert" className="text-xs font-semibold text-rose-600">{splitError}</p>}
                   </div>}
                 </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ExpenseProvider, useExpense } from './context/ExpenseContext';
 import { Navbar } from './components/common/Navbar';
+import { AppSidebar } from './components/common/AppSidebar';
 import { SummaryCards } from './components/dashboard/SummaryCards';
 import { PaymentModeBalances } from './components/dashboard/PaymentModeBalances';
 import { SpendingCharts } from './components/dashboard/SpendingCharts';
@@ -8,6 +9,9 @@ import { SmartBudgetAlert } from './components/dashboard/SmartBudgetAlert';
 import { RecurringBills } from './components/dashboard/RecurringBills';
 import { SurvivalMeter } from './components/dashboard/SurvivalMeter';
 import { ReceivablesLedger } from './components/dashboard/ReceivablesLedger';
+import { CampusQuickLogs } from './components/dashboard/CampusQuickLogs';
+import { ImpulseVault } from './components/dashboard/ImpulseVault';
+import { SavingsJars } from './components/dashboard/SavingsJars';
 import { TransactionList } from './components/transactions/TransactionList';
 import { AddTransactionModal } from './components/transactions/AddTransactionModal';
 import { BudgetManagerModal } from './components/budget/BudgetManagerModal';
@@ -16,10 +20,10 @@ import { MobileInstallPrompt } from './components/common/MobileInstallPrompt';
 import { AiAdvisorWidget } from './components/ai-advisor/AiAdvisorWidget';
 import { TripsSection } from './components/trips/TripsSection';
 import { TripTransactionLedger } from './components/trips/TripTransactionLedger';
-import { LayoutDashboard, Compass } from 'lucide-react';
+import { LayoutDashboard, Compass, List } from 'lucide-react';
 
 function DashboardContent() {
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'trips'
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'transactions' | 'trips'
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [openAiTrigger, setOpenAiTrigger] = useState(false);
@@ -62,14 +66,17 @@ function DashboardContent() {
         onOpenBudgetModal={() => setIsBudgetModalOpen(true)}
         activeTab={activeTab}
         onToggleTripsView={() => setActiveTab((prev) => (prev === 'trips' ? 'dashboard' : 'trips'))}
+        onNavigate={setActiveTab}
       />
 
       {/* Main Content Dashboard */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+      <div className="mx-auto flex w-full max-w-screen-2xl flex-1 gap-4 px-3 sm:px-6 lg:px-8">
+        <AppSidebar activeView={activeTab} onNavigate={setActiveTab} />
+        <main className="min-w-0 flex-1 py-4 sm:py-8 space-y-4 sm:space-y-6">
         
         {/* View Switcher Tabs (iOS Segmented Style on Mobile) */}
         <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2.5">
-          <div className="grid grid-cols-2 w-full sm:w-auto sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+          <div className="grid grid-cols-3 w-full sm:w-auto sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800">
             <button
               onClick={() => setActiveTab('dashboard')}
               className={`flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 ${
@@ -80,6 +87,18 @@ function DashboardContent() {
             >
               <LayoutDashboard className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               <span><span className="hidden sm:inline">Main </span>Dashboard</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('transactions')}
+              aria-current={activeTab === 'transactions' ? 'page' : undefined}
+              className={`flex items-center justify-center space-x-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-[11px] sm:text-sm font-bold transition active:scale-95 ${
+                activeTab === 'transactions'
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <List className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <span>Transactions</span>
             </button>
             <button
               onClick={() => setActiveTab('trips')}
@@ -118,6 +137,12 @@ function DashboardContent() {
 
             <ReceivablesLedger />
 
+            <CampusQuickLogs />
+
+            <ImpulseVault />
+
+            <SavingsJars />
+
             {/* Financial KPI Summary Cards */}
             <SummaryCards />
 
@@ -146,7 +171,15 @@ function DashboardContent() {
           </div>
         )}
 
-      </main>
+        {activeTab === 'transactions' && (
+          <div className="space-y-4 sm:space-y-6">
+            <div><h1 className="text-xl font-extrabold text-slate-900 dark:text-white">Transaction Ledger</h1><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Search, filter, import, and review your money activity.</p></div>
+            <TransactionList onNavigateToTrips={() => setActiveTab('trips')} />
+          </div>
+        )}
+
+        </main>
+      </div>
 
       {/* Footer */}
       <footer className="py-6 border-t border-slate-200/80 dark:border-slate-800/80 text-center text-xs text-slate-400">

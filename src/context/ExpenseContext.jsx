@@ -12,6 +12,8 @@ import { DEFAULT_CATEGORIES, PAYMENT_MODES } from '../utils/formatters';
 import { INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_TRIPS } from '../utils/initialData';
 import { getCurrentMonthStr, getTodayDateStr } from '../utils/dateUtils';
 import { advanceRecurringDate } from '../utils/recurrence';
+import { getImpulseTimeState } from '../utils/impulseVault';
+import { getJarBalanceAfterMove } from '../utils/savings';
 
 // UUID Helpers for Supabase Postgres UUID compatibility
 export const isUUID = (str) => {
@@ -76,7 +78,7 @@ export const parseTransactionRow = (t) => {
 
 const DEFAULT_QUICK_ACTIONS = [
   { id: 'chai', label: 'Chai', icon: '☕', amount: 10, category_name: 'Food & Dining', payment_mode: 'UPI' },
-  { id: 'xerox', label: 'Xerox / Print', icon: '📄', amount: 20, category_name: 'Education', payment_mode: 'Cash' },
+  { id: 'xerox', label: 'Xerox / Print', icon: '📄', amount: 20, category_name: 'Education & Supplies', payment_mode: 'Cash' },
   { id: 'auto', label: 'Auto / Metro', icon: '🛺', amount: 30, category_name: 'Transport & Fuel', payment_mode: 'UPI' },
   { id: 'canteen', label: 'Canteen', icon: '🍜', amount: 50, category_name: 'Food & Dining', payment_mode: 'UPI' },
 ];
@@ -616,7 +618,7 @@ export const ExpenseProvider = ({ children }) => {
     setTransactions(INITIAL_TRANSACTIONS);
     setCategories(DEFAULT_CATEGORIES);
     setTrips(INITIAL_TRIPS);
-      setRecurringRules([]);
+    setRecurringRules([]);
     setReceivables([]);
     setSavingsJars([]);
     setImpulseItems([]);
@@ -725,24 +727,34 @@ export const ExpenseProvider = ({ children }) => {
   };
 
   const addSavingsJar = async ({ name, target }) => {
-    if (!name?.trim() || Number(target) <= 0) return false;
-    const next = [{ id: ensureUUID(), name: name.trim(), target: Number(target), saved: 0, created_at: new Date().toISOString() }, ...savingsJars];
+    const numericTarget = Number(target);
+    if (!name?.trim() || !Number.isFinite(numericTarget) || numericTarget <= 0) return false;
+    const next = [{ id: ensureUUID(), name: name.trim(), target: numericTarget, saved: 0, created_at: new Date().toISOString() }, ...savingsJars];
     setSavingsJars(next);
     await persistProfileFields({ savings_jars: next });
     return true;
   };
 
   const updateSavingsJar = async (id, delta) => {
-    const amount = Number(delta);
-    if (!Number.isFinite(amount) || amount <= 0) return false;
     const jar = savingsJars.find((item) => item.id === id);
-    if (!jar || jar.saved + amount < 0) return false;
+    const saved = getJarBalanceAfterMove(jar, delta);
+    if (!jar || saved === null) return false;
+    if (Number(delta) > 0) {
+      const currentlyReserved = savingsJars.reduce((sum, item) => sum + (Number(item.saved) || 0), 0);
+      if (Number(delta) > Math.max(0, (Number(totalLiquidFunds) || 0) - currentlyReserved)) return false;
+    }
     const next = savingsJars.map((item) => item.id === id
-      ? { ...item, saved: Math.max(0, Math.min(item.target, item.saved + amount)) }
+      ? { ...item, saved }
       : item);
     setSavingsJars(next);
     await persistProfileFields({ savings_jars: next });
     return true;
+  };
+
+  const deleteSavingsJar = async (id) => {
+    const next = savingsJars.filter((jar) => jar.id !== id);
+    setSavingsJars(next);
+    await persistProfileFields({ savings_jars: next });
   };
 
   const saveQuickActions = async (next) => {
@@ -771,7 +783,7 @@ export const ExpenseProvider = ({ children }) => {
   };
 
   const purchaseImpulseItem = async (item) => {
-    if (new Date(item.unlock_at).getTime() > Date.now()) return false;
+    if (!getImpulseTimeState(item.unlock_at).unlocked) return false;
     const txId = await addTransaction({
       amount: item.amount, type: 'expense', category_name: 'Shopping', payment_mode: 'UPI',
       description: `Wishlist: ${item.name}`, date: getTodayDateStr(),
@@ -893,6 +905,11 @@ export const ExpenseProvider = ({ children }) => {
     budgets: budgetByMonth,
     trips,
     recurringRules,
+    receivables,
+    savings_jars: savingsJars,
+    impulse_items: impulseItems,
+    quick_actions: quickActions,
+    upi_id: upiId,
     starting_balances: startingBalances,
   });
 
@@ -930,6 +947,37 @@ export const ExpenseProvider = ({ children }) => {
         }
       }
     }
+
+    if (Array.isArray(backup.receivables)) {
+      const known = new Set(receivables.map((item) => item.id));
+      const imported = backup.receivables.filter((item) => item?.name && Number(item.amount) > 0 && !known.has(item.id));
+      if (imported.length) {
+        const next = [...imported, ...receivables];
+        setReceivables(next);
+        await persistProfileFields({ receivables: next });
+      }
+    }
+    if (Array.isArray(backup.savings_jars)) {
+      const known = new Set(savingsJars.map((jar) => jar.id));
+      const imported = backup.savings_jars.filter((jar) => jar?.name && Number(jar.target) > 0 && !known.has(jar.id))
+        .map((jar) => ({ ...jar, id: jar.id || ensureUUID(), target: Number(jar.target), saved: Math.min(Number(jar.target), Math.max(0, Number(jar.saved) || 0)) }));
+      if (imported.length) {
+        const next = [...imported, ...savingsJars];
+        setSavingsJars(next);
+        await persistProfileFields({ savings_jars: next });
+      }
+    }
+    if (Array.isArray(backup.impulse_items)) {
+      const known = new Set(impulseItems.map((item) => item.id));
+      const imported = backup.impulse_items.filter((item) => item?.name && Number(item.amount) > 0 && item.unlock_at && !known.has(item.id));
+      if (imported.length) {
+        const next = [...imported, ...impulseItems];
+        setImpulseItems(next);
+        await persistProfileFields({ impulse_items: next });
+      }
+    }
+    if (Array.isArray(backup.quick_actions) && backup.quick_actions.length) await saveQuickActions(backup.quick_actions);
+    if (typeof backup.upi_id === 'string') await saveUpiId(backup.upi_id);
 
     const result = await importTransactions(backup.transactions);
     if (backup.budgets && typeof backup.budgets === 'object') {
@@ -1202,6 +1250,12 @@ export const ExpenseProvider = ({ children }) => {
     setBudgetByMonth({ [currentMonthStr]: INITIAL_BUDGETS });
     setCategories(DEFAULT_CATEGORIES);
     setTrips(INITIAL_TRIPS);
+    setRecurringRules([]);
+    setReceivables([]);
+    setSavingsJars([]);
+    setImpulseItems([]);
+    setQuickActions(DEFAULT_QUICK_ACTIONS);
+    setUpiId('');
     setStartingBalances({
       'UPI': 0,
       'Net Banking': 0,
@@ -1479,6 +1533,7 @@ export const ExpenseProvider = ({ children }) => {
     savingsJars,
     addSavingsJar,
     updateSavingsJar,
+    deleteSavingsJar,
     impulseItems,
     addImpulseItem,
     dismissImpulseItem,
