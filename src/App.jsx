@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ExpenseProvider, useExpense } from './context/ExpenseContext';
+import { AppLockProvider, useAppLock } from './context/AppLockContext';
 import { Navbar } from './components/common/Navbar';
 import { AppSidebar } from './components/common/AppSidebar';
 import { SummaryCards } from './components/dashboard/SummaryCards';
@@ -29,6 +30,7 @@ function DashboardContent() {
   const [openAiTrigger, setOpenAiTrigger] = useState(false);
   const [selectedTripForAdd, setSelectedTripForAdd] = useState(null);
   const { trips, isAuthModalOpen, setIsAuthModalOpen } = useExpense();
+  const { appLockEnabled, lockApp, openAppLockSettings } = useAppLock();
 
   // Global keyboard shortcut: Press "n" or "N" to open quick add
   useEffect(() => {
@@ -67,6 +69,9 @@ function DashboardContent() {
         activeTab={activeTab}
         onToggleTripsView={() => setActiveTab((prev) => (prev === 'trips' ? 'dashboard' : 'trips'))}
         onNavigate={setActiveTab}
+        appLockEnabled={appLockEnabled}
+        onLockApp={lockApp}
+        onOpenAppLockSettings={openAppLockSettings}
       />
 
       {/* Main Content Dashboard */}
@@ -217,8 +222,10 @@ function DashboardContent() {
 
 export default function App() {
   return (
-    <ExpenseProvider>
-      <DashboardContent />
-    </ExpenseProvider>
+    <AppLockProvider>
+      <ExpenseProvider>
+        <DashboardContent />
+      </ExpenseProvider>
+    </AppLockProvider>
   );
 }
