@@ -188,9 +188,7 @@ function DashboardContent() {
 
       {/* Footer */}
       <footer className="py-6 border-t border-slate-200/80 dark:border-slate-800/80 text-center text-xs text-slate-400">
-        <p>
-          PaisaPilot &bull; Built with React.js &bull; Supabase &bull; Groq AI &bull; Indian Rupee (₹)
-        </p>
+        <p aria-label="Pranav watermark" className="select-none text-2xl font-black tracking-[0.3em] text-slate-400/60 dark:text-slate-600/70 sm:text-3xl">Pranav</p>
       </footer>
 
       {/* Modals & Dialogs */}
