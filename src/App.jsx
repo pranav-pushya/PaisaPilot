@@ -62,7 +62,7 @@ function DashboardContent() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white w-full max-w-full overflow-x-hidden">
+    <div className="min-h-screen pt-14 sm:pt-20 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white w-full max-w-full overflow-x-hidden">
       {/* Top Navigation */}
       <Navbar
         onOpenAddModal={() => {
