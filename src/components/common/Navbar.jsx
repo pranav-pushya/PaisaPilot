@@ -50,7 +50,7 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
   } = useExpense();
 
   const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mobileSidebarSide, setMobileSidebarSide] = useState(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const pickerRef = useRef(null);
@@ -125,7 +125,7 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
           
           {/* Logo & Brand Title */}
           <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
-            <button type="button" onClick={() => setIsMobileMenuOpen((open) => !open)} aria-label={isMobileMenuOpen ? 'Close PaisaPilot sidebar' : 'Open PaisaPilot sidebar'} aria-expanded={isMobileMenuOpen} className="md:hidden w-8 h-8 rounded-xl overflow-hidden shadow-md shadow-indigo-500/30 ring-2 ring-indigo-500/30 flex items-center justify-center bg-slate-950 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+            <button type="button" onClick={() => setMobileSidebarSide((side) => side === 'left' ? null : 'left')} aria-label="Open finance sidebar from the left" aria-expanded={mobileSidebarSide === 'left'} className="md:hidden w-8 h-8 rounded-xl overflow-hidden shadow-md shadow-indigo-500/30 ring-2 ring-indigo-500/30 flex items-center justify-center bg-slate-950 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
               <img src="/icon-192.png" alt="PaisaPilot Rupee Jet Logo" className="w-full h-full object-cover" />
             </button>
             <div className="hidden md:flex w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl overflow-hidden shadow-md shadow-indigo-500/30 ring-1.5 sm:ring-2 ring-indigo-500/30 items-center justify-center bg-slate-950 shrink-0">
@@ -368,12 +368,12 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
           <div className="flex md:hidden items-center space-x-1.5 shrink-0">
             <button
               type="button"
-              onClick={() => setIsMobileMenuOpen((open) => !open)}
+              onClick={() => setMobileSidebarSide((side) => side === 'right' ? null : 'right')}
               className="p-2 rounded-xl text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition active:scale-95 flex items-center justify-center"
-              aria-label={isMobileMenuOpen ? 'Close navigation sidebar' : 'Open navigation sidebar'}
-              aria-expanded={isMobileMenuOpen}
+              aria-label="Open finance sidebar from the right"
+              aria-expanded={mobileSidebarSide === 'right'}
             >
-              {isMobileMenuOpen ? <X className="h-5 w-5 text-indigo-600 dark:text-indigo-400" /> : <Menu className="h-5 w-5" />}
+              <Menu className="h-5 w-5" />
             </button>
           </div>
 
@@ -382,20 +382,20 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
     </header>
 
       {/* Mobile Drawer Menu */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsMobileMenuOpen(false); }}>
-          <aside aria-label="PaisaPilot sidebar" className="absolute inset-y-0 left-0 flex max-h-[100dvh] w-[min(88vw,22rem)] flex-col overflow-y-auto border-r border-slate-200 bg-white px-4 py-4 shadow-2xl animate-fadeIn dark:border-slate-800 dark:bg-slate-900" onMouseDown={(event) => event.stopPropagation()}>
+      {mobileSidebarSide && (
+        <div className="md:hidden fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setMobileSidebarSide(null); }}>
+          <aside aria-label={`PaisaPilot sidebar from the ${mobileSidebarSide}`} className={`absolute inset-y-0 ${mobileSidebarSide === 'left' ? 'left-0 border-r' : 'right-0 border-l'} flex max-h-[100dvh] w-[min(88vw,22rem)] flex-col overflow-y-auto border-slate-200 bg-white px-4 py-4 shadow-2xl dark:border-slate-800 dark:bg-slate-900`} onMouseDown={(event) => event.stopPropagation()}>
           <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <img src="/icon-192.png" alt="" className="h-9 w-9 rounded-xl" />
               <div><p className="text-sm font-extrabold text-slate-900 dark:text-white">PaisaPilot</p><p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-500">Finance tools</p></div>
             </div>
-            <button type="button" onClick={() => setIsMobileMenuOpen(false)} aria-label="Close sidebar" className="rounded-xl border border-slate-200 p-2 text-slate-600 dark:border-slate-700 dark:text-slate-300"><X className="h-5 w-5" /></button>
+            <button type="button" onClick={() => setMobileSidebarSide(null)} aria-label="Close sidebar" className="rounded-xl border border-slate-200 p-2 text-slate-600 dark:border-slate-700 dark:text-slate-300"><X className="h-5 w-5" /></button>
           </div>
           {/* Primary Action: Add Expense */}
           <button
             onClick={() => {
-              setIsMobileMenuOpen(false);
+              setMobileSidebarSide(null);
               onOpenAddModal();
             }}
             className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-indigo-600/25 active:scale-98 transition"
@@ -421,7 +421,7 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
               </div>
               <button
                 onClick={() => {
-                  setIsMobileMenuOpen(false);
+                  setMobileSidebarSide(null);
                   logout();
                 }}
                 className="text-xs text-red-600 dark:text-red-400 font-bold hover:underline shrink-0 ml-2"
@@ -432,7 +432,7 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
           ) : (
             <button
               onClick={() => {
-                setIsMobileMenuOpen(false);
+                setMobileSidebarSide(null);
                 setIsAuthModalOpen(true);
               }}
               className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 transition active:scale-95"
@@ -452,26 +452,26 @@ export const Navbar = ({ onOpenAddModal, onOpenBudgetModal, activeTab, onToggleT
                 ['feature-impulse', 'Impulse Vault', Hourglass],
                 ['feature-savings', 'Micro-Savings Jars', PiggyBank],
               ].map(([view, label, Icon]) => (
-                <button key={view} type="button" aria-current={activeTab === view ? 'page' : undefined} onClick={() => { setIsMobileMenuOpen(false); onNavigate(view); }} className={`flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-bold transition active:scale-[.99] ${activeTab === view ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-transparent text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 dark:text-slate-200 dark:hover:border-indigo-900 dark:hover:bg-indigo-950/50'}`}>
+                <button key={view} type="button" aria-current={activeTab === view ? 'page' : undefined} onClick={() => { setMobileSidebarSide(null); onNavigate(view); }} className={`flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-bold transition active:scale-[.99] ${activeTab === view ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-transparent text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 dark:text-slate-200 dark:hover:border-indigo-900 dark:hover:bg-indigo-950/50'}`}>
                   <Icon className={`h-4 w-4 shrink-0 ${activeTab === view ? 'text-white' : 'text-indigo-500'}`} /><span>{label}</span>
                 </button>
               ))}
             </nav>
           </div>
 
-          <button onClick={() => { setIsMobileMenuOpen(false); onOpenBudgetModal(); }} className="mt-3 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"><Target className="h-4 w-4 text-indigo-500" />Set Budgets</button>
+          <button onClick={() => { setMobileSidebarSide(null); onOpenBudgetModal(); }} className="mt-3 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"><Target className="h-4 w-4 text-indigo-500" />Set Budgets</button>
 
           {/* Device app lock controls */}
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => { setIsMobileMenuOpen(false); onOpenAppLockSettings(); }}
+              onClick={() => { setMobileSidebarSide(null); onOpenAppLockSettings(); }}
               className="flex items-center space-x-2 rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-xs font-bold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300"
             >
               <LockKeyhole className="h-4 w-4 shrink-0" />
               <span>{appLockEnabled ? 'App Lock Settings' : 'Set Up App Lock'}</span>
             </button>
             {appLockEnabled ? (
-              <button onClick={() => { setIsMobileMenuOpen(false); onLockApp(); }} className="flex items-center space-x-2 rounded-xl border border-slate-200 bg-slate-100 p-3 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              <button onClick={() => { setMobileSidebarSide(null); onLockApp(); }} className="flex items-center space-x-2 rounded-xl border border-slate-200 bg-slate-100 p-3 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                 <ShieldCheck className="h-4 w-4 shrink-0" /><span>Lock Now</span>
               </button>
             ) : (
